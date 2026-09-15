@@ -1,9 +1,9 @@
 #version 460 core
 #include <flutter/runtime_effect.glsl>
 
-uniform vec2 uSize;        // размер экрана
-uniform float uTime;       // время
-uniform float uIntensity;  // интенсивность эффекта
+uniform vec2 uSize;
+uniform float uTime;
+uniform float uIntensity;
 uniform sampler2D uTexture;
 
 out vec4 fragColor;
@@ -14,25 +14,29 @@ float rand(vec2 co) {
 
 void main() {
     vec2 uv = FlutterFragCoord().xy / uSize;
+    uv.y = 1.0 - uv.y;
 
-    // Сдвиг каналов (RGB split)
-    float shift = 0.01 * uIntensity;
+    // RGB split
+    float shift = 0.012 * uIntensity;
     float r = texture(uTexture, uv + vec2(shift, 0.0)).r;
     float g = texture(uTexture, uv).g;
     float b = texture(uTexture, uv - vec2(shift, 0.0)).b;
     vec3 color = vec3(r, g, b);
 
+    // VHS-скан-линии
+    float scanline = sin(uv.y * 900.0 + uTime * 12.0) * 0.08 * uIntensity;
+    color -= scanline;
+
     // Шум
     float noise = rand(uv + uTime) * 0.15 * uIntensity;
     color += noise;
 
-    // VHS-полосы
-    float scanline = sin(uv.y * 800.0 + uTime * 10.0) * 0.05 * uIntensity;
-    color -= scanline;
-
-    // Случайный сдвиг строк
-    float blockShift = step(0.98, rand(vec2(floor(uv.y * 50.0), floor(uTime * 10.0))));
-    uv.x += blockShift * 0.05 * uIntensity;
+    // Блочный сдвиг строк (datamosh vibe)
+    float blockRow = floor(uv.y * 60.0);
+    float blockShift = step(0.97, rand(vec2(blockRow, floor(uTime * 6.0))));
+    vec2 uvShift = uv + vec2(blockShift * 0.04 * uIntensity, 0.0);
+    vec3 shifted = texture(uTexture, uvShift).rgb;
+    color = mix(color, shifted, blockShift);
 
     fragColor = vec4(color, 1.0);
 }
