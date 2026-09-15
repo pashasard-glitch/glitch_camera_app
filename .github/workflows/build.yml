@@ -30,9 +30,9 @@ jobs:
       - name: Show compileSdk before
         run: grep -n "compileSdk" android/app/build.gradle.kts || true
 
-      - name: Bump compileSdk to 34
+      - name: Bump compileSdk to 36
         run: |
-          sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 34|g' android/app/build.gradle.kts
+          sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 36|g' android/app/build.gradle.kts
 
       - name: Show compileSdk after
         run: grep -n "compileSdk" android/app/build.gradle.kts || true
