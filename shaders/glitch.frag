@@ -1,18 +1,20 @@
-
-
 #version 460 core
 #include <flutter/runtime_effect.glsl>
 
 uniform vec2 uSize;
 uniform float uTime;
 uniform float uIntensity;
-uniform int uEffectFlags;
+uniform float uEffectFlags;
 uniform sampler2D uTexture;
 
 out vec4 fragColor;
 
 float rand(vec2 co) {
     return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+bool flagOn(float flag) {
+    return mod(floor(uEffectFlags / flag), 2.0) >= 1.0;
 }
 
 void main() {
@@ -22,14 +24,14 @@ void main() {
     vec3 color = texture(uTexture, uv).rgb;
 
     // 1: RGB Split
-    if ((uEffectFlags & 1) != 0) {
+    if (flagOn(1.0)) {
         float amt = 0.02 * uIntensity;
         color.r = texture(uTexture, uv + vec2(amt, 0.0)).r;
         color.b = texture(uTexture, uv - vec2(amt, 0.0)).b;
     }
 
     // 2: VHS / scanlines
-    if ((uEffectFlags & 2) != 0) {
+    if (flagOn(2.0)) {
         float scan = sin(uv.y * 1200.0 + uTime * 25.0) * 0.1 * uIntensity;
         color -= scan;
         float shift = step(0.94, rand(vec2(floor(uv.y * 90.0), floor(uTime * 20.0))));
@@ -38,8 +40,8 @@ void main() {
         color += vec3(0.1, 0.0, 0.15) * uIntensity;
     }
 
-    // 4: DataMosh — блочный сдвиг
-    if ((uEffectFlags & 4) != 0) {
+    // 4: DataMosh
+    if (flagOn(4.0)) {
         float row = floor(uv.y * 30.0);
         float col = floor(uv.x * 20.0);
         float block = rand(vec2(row, col + floor(uTime * 6.0)));
@@ -51,19 +53,19 @@ void main() {
     }
 
     // 8: Noise
-    if ((uEffectFlags & 8) != 0) {
+    if (flagOn(8.0)) {
         float n = rand(uv * uSize + uTime * 100.0);
         color += n * 0.4 * uIntensity;
     }
 
     // 16: Invert pulse
-    if ((uEffectFlags & 16) != 0) {
+    if (flagOn(16.0)) {
         float pulse = step(0.96, rand(vec2(floor(uTime * 10.0))));
         color = mix(color, vec3(1.0) - color, pulse * uIntensity);
     }
 
-    // 32: Кислотный оттенок (braincor vibes)
-    if ((uEffectFlags & 32) != 0) {
+    // 32: Acid tint
+    if (flagOn(32.0)) {
         color *= vec3(1.2, 0.9, 1.3);
         color += vec3(0.05, 0.0, 0.1) * uIntensity;
     }

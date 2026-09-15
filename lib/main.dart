@@ -40,7 +40,7 @@ class _CameraScreenState extends State<CameraScreen> {
   double _intensity = 0.8;
   double _time = 0.0;
   bool _busy = false;
-  int _flags = 1; // по умолчанию включён RGB Split
+  int _flags = 1;
 
   @override
   void initState() {
@@ -134,10 +134,6 @@ class _CameraScreenState extends State<CameraScreen> {
     super.dispose();
   }
 
-  void _toggle(int flag) {
-    setState(() => _flags ^= flag);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -167,7 +163,6 @@ class _CameraScreenState extends State<CameraScreen> {
                       ),
                     ),
             ),
-            // Кнопка меню эффектов в правом верхнем углу
             Positioned(
               top: 16,
               right: 16,
@@ -183,7 +178,6 @@ class _CameraScreenState extends State<CameraScreen> {
                 ),
               ),
             ),
-            // Слайдер интенсивности
             Positioned(
               bottom: 24,
               left: 20,
@@ -295,7 +289,7 @@ class _GlitchPainter extends CustomPainter {
     shader.setFloat(1, size.height);
     shader.setFloat(2, time);
     shader.setFloat(3, intensity);
-    shader.setInt(4, flags);
+    shader.setFloat(4, flags.toDouble());
     shader.setImageSampler(0, frame);
 
     canvas.drawRect(
