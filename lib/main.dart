@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 late List<CameraDescription> _cameras;
 
@@ -41,6 +42,7 @@ class _CameraScreenState extends State<CameraScreen> {
   double _time = 0.0;
   bool _busy = false;
   int _flags = 1;
+  bool _isRecording = false;
 
   @override
   void initState() {
@@ -65,8 +67,8 @@ class _CameraScreenState extends State<CameraScreen> {
     );
     final controller = CameraController(
       camera,
-      ResolutionPreset.medium,
-      enableAudio: false,
+      ResolutionPreset.low,
+      enableAudio: true,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
     _controller = controller;
@@ -134,6 +136,67 @@ class _CameraScreenState extends State<CameraScreen> {
     super.dispose();
   }
 
+  Future<void> _takePhoto() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    try {
+      await _controller!.stopImageStream();
+      final XFile file = await _controller!.takePicture();
+      final dir = await getApplicationDocumentsDirectory();
+      final path = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await file.saveTo(path);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Фото сохранено: $path')),
+        );
+      }
+      await _controller!.startImageStream((CameraImage image) async {
+        if (_busy) return;
+        _busy = true;
+        try {
+          final uiImage = await _convertYUV(image);
+          if (mounted) setState(() => _frame = uiImage);
+        } catch (_) {}
+        _busy = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка фото: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleVideo() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    try {
+      if (_isRecording) {
+        await _controller!.stopVideoRecording();
+        setState(() => _isRecording = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Видео остановлено')),
+          );
+        }
+      } else {
+        await _controller!.stopImageStream();
+        await _controller!.startVideoRecording();
+        setState(() => _isRecording = true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Запись видео...')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка видео: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -176,6 +239,48 @@ class _CameraScreenState extends State<CameraScreen> {
                   ),
                   child: const Icon(Icons.tune, color: Colors.cyanAccent),
                 ),
+              ),
+            ),
+            Positioned(
+              bottom: 120,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  GestureDetector(
+                    onTap: _takePhoto,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.cyanAccent, width: 3),
+                        color: Colors.black54,
+                      ),
+                      child: const Icon(Icons.camera_alt, color: Colors.cyanAccent),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _toggleVideo,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _isRecording ? Colors.redAccent : Colors.cyanAccent,
+                          width: 3,
+                        ),
+                        color: Colors.black54,
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.videocam,
+                        color: _isRecording ? Colors.redAccent : Colors.cyanAccent,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Positioned(
