@@ -1,9 +1,12 @@
+
+
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 
 late List<CameraDescription> _cameras;
@@ -43,6 +46,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _busy = false;
   int _flags = 1;
   bool _isRecording = false;
+  int _frameCounter = 0;
 
   @override
   void initState() {
@@ -73,8 +77,15 @@ class _CameraScreenState extends State<CameraScreen> {
     );
     _controller = controller;
     await controller.initialize();
+    await _startStream();
+    if (mounted) setState(() {});
+  }
 
-    await controller.startImageStream((CameraImage image) async {
+  Future<void> _startStream() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    await _controller!.startImageStream((CameraImage image) async {
+      _frameCounter++;
+      if (_frameCounter % 2 != 0) return;
       if (_busy) return;
       _busy = true;
       try {
@@ -83,8 +94,6 @@ class _CameraScreenState extends State<CameraScreen> {
       } catch (_) {}
       _busy = false;
     });
-
-    if (mounted) setState(() {});
   }
 
   Future<ui.Image> _convertYUV(CameraImage image) async {
@@ -141,29 +150,24 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       await _controller!.stopImageStream();
       final XFile file = await _controller!.takePicture();
-      final dir = await getApplicationDocumentsDirectory();
-      final path = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/glitch_${DateTime.now().millisecondsSinceEpoch}.jpg';
       await file.saveTo(path);
+      await Gal.putImage(path);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Фото сохранено: $path')),
+          const SnackBar(content: Text('Фото сохранено в галерею')),
         );
       }
-      await _controller!.startImageStream((CameraImage image) async {
-        if (_busy) return;
-        _busy = true;
-        try {
-          final uiImage = await _convertYUV(image);
-          if (mounted) setState(() => _frame = uiImage);
-        } catch (_) {}
-        _busy = false;
-      });
+      await _startStream();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка фото: $e')),
         );
       }
+      await _startStream();
     }
   }
 
@@ -171,13 +175,19 @@ class _CameraScreenState extends State<CameraScreen> {
     if (_controller == null || !_controller!.value.isInitialized) return;
     try {
       if (_isRecording) {
-        await _controller!.stopVideoRecording();
+        final XFile file = await _controller!.stopVideoRecording();
+        final dir = await getTemporaryDirectory();
+        final path =
+            '${dir.path}/glitch_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
+        await file.saveTo(path);
+        await Gal.putVideo(path);
         setState(() => _isRecording = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Видео остановлено')),
+            const SnackBar(content: Text('Видео сохранено в галерею')),
           );
         }
+        await _startStream();
       } else {
         await _controller!.stopImageStream();
         await _controller!.startVideoRecording();
@@ -258,7 +268,8 @@ class _CameraScreenState extends State<CameraScreen> {
                         border: Border.all(color: Colors.cyanAccent, width: 3),
                         color: Colors.black54,
                       ),
-                      child: const Icon(Icons.camera_alt, color: Colors.cyanAccent),
+                      child:
+                          const Icon(Icons.camera_alt, color: Colors.cyanAccent),
                     ),
                   ),
                   GestureDetector(
@@ -269,14 +280,18 @@ class _CameraScreenState extends State<CameraScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _isRecording ? Colors.redAccent : Colors.cyanAccent,
+                          color: _isRecording
+                              ? Colors.redAccent
+                              : Colors.cyanAccent,
                           width: 3,
                         ),
                         color: Colors.black54,
                       ),
                       child: Icon(
                         _isRecording ? Icons.stop : Icons.videocam,
-                        color: _isRecording ? Colors.redAccent : Colors.cyanAccent,
+                        color: _isRecording
+                            ? Colors.redAccent
+                            : Colors.cyanAccent,
                       ),
                     ),
                   ),
