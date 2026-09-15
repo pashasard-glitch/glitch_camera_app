@@ -23,27 +23,26 @@ jobs:
 
       - run: flutter create . --project-name glitch_camera_app --org com.pashasard --platforms android
 
-      - name: Add permissions to manifest
+      - name: Add permissions
         run: |
-          sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>|' android/app/src/main/AndroidManifest.xml
+          sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>|' android/app/src/main/AndroidManifest.xml
+
+      - name: Show compileSdk before
+        run: grep -n "compileSdk" android/app/build.gradle.kts || true
 
       - name: Bump compileSdk to 34
         run: |
-          if [ -f android/app/build.gradle.kts ]; then
-            sed -i 's|compileSdk = flutter.compileSdkVersion|compileSdk = 34|g' android/app/build.gradle.kts
-            grep -n "compileSdk" android/app/build.gradle.kts || true
-          fi
-          if [ -f android/app/build.gradle ]; then
-            sed -i 's|compileSdkVersion flutter.compileSdkVersion|compileSdkVersion 34|g' android/app/build.gradle
-            grep -n "compileSdk" android/app/build.gradle || true
-          fi
+          sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 34|g' android/app/build.gradle.kts
+
+      - name: Show compileSdk after
+        run: grep -n "compileSdk" android/app/build.gradle.kts || true
 
       - run: flutter pub get
 
       - name: Build APK
         run: flutter build apk --release
 
-      - name: List build output
+      - name: Find APK
         run: find build -name "*.apk" -type f
 
       - uses: actions/upload-artifact@v4
