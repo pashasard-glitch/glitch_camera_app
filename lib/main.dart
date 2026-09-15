@@ -40,6 +40,7 @@ class _CameraScreenState extends State<CameraScreen> {
   double _intensity = 0.8;
   double _time = 0.0;
   bool _busy = false;
+  int _flags = 1; // по умолчанию включён RGB Split
 
   @override
   void initState() {
@@ -133,6 +134,10 @@ class _CameraScreenState extends State<CameraScreen> {
     super.dispose();
   }
 
+  void _toggle(int flag) {
+    setState(() => _flags ^= flag);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,12 +160,30 @@ class _CameraScreenState extends State<CameraScreen> {
                               frame: _frame!,
                               intensity: _intensity,
                               time: _time,
+                              flags: _flags,
                             ),
                           ),
                         ),
                       ),
                     ),
             ),
+            // Кнопка меню эффектов в правом верхнем углу
+            Positioned(
+              top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: _showEffectMenu,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(color: Colors.cyanAccent, width: 2),
+                  ),
+                  child: const Icon(Icons.tune, color: Colors.cyanAccent),
+                ),
+              ),
+            ),
+            // Слайдер интенсивности
             Positioned(
               bottom: 24,
               left: 20,
@@ -191,6 +214,63 @@ class _CameraScreenState extends State<CameraScreen> {
       ),
     );
   }
+
+  void _showEffectMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black.withOpacity(0.95),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Widget cb(String label, int flag) {
+              final on = (_flags & flag) != 0;
+              return CheckboxListTile(
+                value: on,
+                onChanged: (_) {
+                  setState(() => _flags ^= flag);
+                  setSheetState(() {});
+                },
+                title: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.cyanAccent,
+                    letterSpacing: 3,
+                  ),
+                ),
+                activeColor: Colors.cyanAccent,
+                checkColor: Colors.black,
+                side: const BorderSide(color: Colors.cyanAccent),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'EFFECTS',
+                    style: TextStyle(
+                      color: Colors.cyanAccent,
+                      fontSize: 18,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  cb('RGB SPLIT', 1),
+                  cb('VHS SCAN', 2),
+                  cb('DATAMOSH', 4),
+                  cb('NOISE', 8),
+                  cb('INVERT PULSE', 16),
+                  cb('ACID TINT', 32),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _GlitchPainter extends CustomPainter {
@@ -198,12 +278,14 @@ class _GlitchPainter extends CustomPainter {
   final ui.Image frame;
   final double intensity;
   final double time;
+  final int flags;
 
   _GlitchPainter({
     required this.program,
     required this.frame,
     required this.intensity,
     required this.time,
+    required this.flags,
   });
 
   @override
@@ -213,6 +295,7 @@ class _GlitchPainter extends CustomPainter {
     shader.setFloat(1, size.height);
     shader.setFloat(2, time);
     shader.setFloat(3, intensity);
+    shader.setInt(4, flags);
     shader.setImageSampler(0, frame);
 
     canvas.drawRect(
