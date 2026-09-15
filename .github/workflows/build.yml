@@ -27,10 +27,19 @@ jobs:
         run: |
           sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>|' android/app/src/main/AndroidManifest.xml
 
+      - name: Bump compileSdk to 34
+        run: |
+          find android/app -name "build.gradle*" -exec sed -i 's/compileSdk[ =]*[0-9]*/compileSdk = 34/g' {} \;
+          find android/app -name "build.gradle*" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} \;
+          grep -r "compileSdk" android/app/ || true
+
       - run: flutter pub get
-      - run: flutter build apk --release
+
+      - name: Build APK
+        run: flutter build apk --release 2>&1 | tail -150
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: glitch-camera-apk
           path: build/app/outputs/flutter-apk/app-release.apk
