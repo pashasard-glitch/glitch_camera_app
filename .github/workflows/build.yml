@@ -18,9 +18,10 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
           channel: 'stable'
           cache: true
+
+      - run: flutter create . --project-name glitch_camera_app --org com.pashasard --platforms android
 
       - run: flutter pub get
       - run: flutter build apk --release
