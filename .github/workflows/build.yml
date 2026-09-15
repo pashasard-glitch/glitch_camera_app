@@ -31,15 +31,17 @@ jobs:
         run: |
           find android/app -name "build.gradle*" -exec sed -i 's/compileSdk[ =]*[0-9]*/compileSdk = 34/g' {} \;
           find android/app -name "build.gradle*" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' {} \;
-          grep -r "compileSdk" android/app/ || true
 
       - run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release 2>&1 | tail -150
+        run: flutter build apk --release
+
+      - name: List build output
+        run: find build -name "*.apk" -type f
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: glitch-camera-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/**/*.apk
