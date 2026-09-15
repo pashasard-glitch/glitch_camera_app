@@ -48,7 +48,6 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isRecording = false;
   int _frameCounter = 0;
 
-  // для видео
   final List<ui.Image> _recordedFrames = [];
   static const int _videoFps = 12;
 
@@ -96,7 +95,6 @@ class _CameraScreenState extends State<CameraScreen> {
         final uiImage = await _convertYUV(image);
         if (mounted) setState(() => _frame = uiImage);
 
-        // если пишем видео — сохраняем кадр с эффектом
         if (_isRecording && _program != null && _frame != null) {
           final rendered = await _renderGlitchFrame(
             _frame!,
@@ -242,7 +240,6 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> _toggleVideo() async {
     if (_isRecording) {
-      // STOP
       setState(() => _isRecording = false);
       final frames = List<ui.Image>.from(_recordedFrames);
       _recordedFrames.clear();
@@ -253,23 +250,28 @@ class _CameraScreenState extends State<CameraScreen> {
         final path =
             '${dir.path}/glitch_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
-        final writer = await FlutterQuickVideoEncoder().createVideo(
-          path,
+        await FlutterQuickVideoEncoder.setup(
+          width: frames.first.width,
+          height: frames.first.height,
           fps: _videoFps,
+          videoBitrate: 2000000,
+          profileLevel: ProfileLevel.any,
+          audioChannels: 0,
+          audioBitrate: 0,
+          sampleRate: 0,
+          filepath: path,
         );
 
         for (final f in frames) {
           final byteData =
               await f.toByteData(format: ui.ImageByteFormat.rawRgba);
           if (byteData == null) continue;
-          await writer.addFrame(
+          await FlutterQuickVideoEncoder.appendVideoFrame(
             byteData.buffer.asUint8List(),
-            width: f.width,
-            height: f.height,
           );
         }
 
-        await writer.finish();
+        await FlutterQuickVideoEncoder.finish();
         await Gal.putVideo(path);
 
         if (mounted) {
@@ -285,7 +287,6 @@ class _CameraScreenState extends State<CameraScreen> {
         }
       }
     } else {
-      // START
       _recordedFrames.clear();
       setState(() => _isRecording = true);
       if (mounted) {
