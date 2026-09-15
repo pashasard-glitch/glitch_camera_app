@@ -1,11 +1,11 @@
-
-
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_quick_video_encoder/flutter_quick_video_encoder.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -48,6 +48,10 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isRecording = false;
   int _frameCounter = 0;
 
+  // для видео
+  final List<ui.Image> _recordedFrames = [];
+  static const int _videoFps = 12;
+
   @override
   void initState() {
     super.initState();
@@ -72,7 +76,7 @@ class _CameraScreenState extends State<CameraScreen> {
     final controller = CameraController(
       camera,
       ResolutionPreset.low,
-      enableAudio: true,
+      enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
     _controller = controller;
@@ -91,6 +95,20 @@ class _CameraScreenState extends State<CameraScreen> {
       try {
         final uiImage = await _convertYUV(image);
         if (mounted) setState(() => _frame = uiImage);
+
+        // если пишем видео — сохраняем кадр с эффектом
+        if (_isRecording && _program != null && _frame != null) {
+          final rendered = await _renderGlitchFrame(
+            _frame!,
+            _program!,
+            _intensity,
+            _time,
+            _flags,
+          );
+          if (rendered != null) {
+            _recordedFrames.add(rendered);
+          }
+        }
       } catch (_) {}
       _busy = false;
     });
@@ -138,6 +156,48 @@ class _CameraScreenState extends State<CameraScreen> {
     return completer.future;
   }
 
+  Future<ui.Image?> _renderGlitchFrame(
+    ui.Image frame,
+    ui.FragmentProgram program,
+    double intensity,
+    double time,
+    int flags,
+  ) async {
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final size = Size(
+        frame.height.toDouble(),
+        frame.width.toDouble(),
+      );
+
+      canvas.translate(size.width / 2, size.height / 2);
+      canvas.rotate(3.14159265 / 2);
+      canvas.translate(-size.height / 2, -size.width / 2);
+
+      final shader = program.fragmentShader();
+      shader.setFloat(0, size.width);
+      shader.setFloat(1, size.height);
+      shader.setFloat(2, time);
+      shader.setFloat(3, intensity);
+      shader.setFloat(4, flags.toDouble());
+      shader.setImageSampler(0, frame);
+
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..shader = shader,
+      );
+
+      final picture = recorder.endRecording();
+      return await picture.toImage(
+        size.width.toInt(),
+        size.height.toInt(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void dispose() {
     _controller?.stopImageStream();
@@ -146,62 +206,91 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _takePhoto() async {
-    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_frame == null || _program == null) return;
     try {
-      await _controller!.stopImageStream();
-      final XFile file = await _controller!.takePicture();
+      final rendered = await _renderGlitchFrame(
+        _frame!,
+        _program!,
+        _intensity,
+        _time,
+        _flags,
+      );
+      if (rendered == null) return;
+      final byteData = await rendered.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final bytes = byteData.buffer.asUint8List();
+
       final dir = await getTemporaryDirectory();
       final path =
-          '${dir.path}/glitch_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await file.saveTo(path);
+          '${dir.path}/glitch_${DateTime.now().millisecondsSinceEpoch}.png';
+      await File(path).writeAsBytes(bytes);
       await Gal.putImage(path);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Фото сохранено в галерею')),
+          const SnackBar(content: Text('Глитч-фото сохранено в галерею')),
         );
       }
-      await _startStream();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка фото: $e')),
         );
       }
-      await _startStream();
     }
   }
 
   Future<void> _toggleVideo() async {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    try {
-      if (_isRecording) {
-        final XFile file = await _controller!.stopVideoRecording();
+    if (_isRecording) {
+      // STOP
+      setState(() => _isRecording = false);
+      final frames = List<ui.Image>.from(_recordedFrames);
+      _recordedFrames.clear();
+      if (frames.isEmpty) return;
+
+      try {
         final dir = await getTemporaryDirectory();
         final path =
             '${dir.path}/glitch_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
-        await file.saveTo(path);
-        await Gal.putVideo(path);
-        setState(() => _isRecording = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Видео сохранено в галерею')),
+
+        final writer = await FlutterQuickVideoEncoder().createVideo(
+          path,
+          fps: _videoFps,
+        );
+
+        for (final f in frames) {
+          final byteData =
+              await f.toByteData(format: ui.ImageByteFormat.rawRgba);
+          if (byteData == null) continue;
+          await writer.addFrame(
+            byteData.buffer.asUint8List(),
+            width: f.width,
+            height: f.height,
           );
         }
-        await _startStream();
-      } else {
-        await _controller!.stopImageStream();
-        await _controller!.startVideoRecording();
-        setState(() => _isRecording = true);
+
+        await writer.finish();
+        await Gal.putVideo(path);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Запись видео...')),
+            const SnackBar(content: Text('Глитч-видео сохранено в галерею')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ошибка видео: $e')),
           );
         }
       }
-    } catch (e) {
+    } else {
+      // START
+      _recordedFrames.clear();
+      setState(() => _isRecording = true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка видео: $e')),
+          const SnackBar(content: Text('Запись глитч-видео...')),
         );
       }
     }
@@ -236,6 +325,24 @@ class _CameraScreenState extends State<CameraScreen> {
                       ),
                     ),
             ),
+            if (_isRecording)
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  color: Colors.red.withOpacity(0.7),
+                  child: const Text(
+                    'REC',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               top: 16,
               right: 16,
@@ -265,11 +372,12 @@ class _CameraScreenState extends State<CameraScreen> {
                       height: 64,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.cyanAccent, width: 3),
+                        border:
+                            Border.all(color: Colors.cyanAccent, width: 3),
                         color: Colors.black54,
                       ),
-                      child:
-                          const Icon(Icons.camera_alt, color: Colors.cyanAccent),
+                      child: const Icon(Icons.camera_alt,
+                          color: Colors.cyanAccent),
                     ),
                   ),
                   GestureDetector(
