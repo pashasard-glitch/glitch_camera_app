@@ -142,12 +142,22 @@ class _CameraScreenState extends State<CameraScreen> {
             Positioned.fill(
               child: (_program == null || _frame == null)
                   ? const Center(child: CircularProgressIndicator())
-                  : CustomPaint(
-                      painter: _GlitchPainter(
-                        program: _program!,
-                        frame: _frame!,
-                        intensity: _intensity,
-                        time: _time,
+                  : FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: _frame!.height.toDouble(),
+                        height: _frame!.width.toDouble(),
+                        child: Transform.rotate(
+                          angle: 3.14159265 / 2,
+                          child: CustomPaint(
+                            painter: _GlitchPainter(
+                              program: _program!,
+                              frame: _frame!,
+                              intensity: _intensity,
+                              time: _time,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
             ),
