@@ -10,8 +10,6 @@ class ShaderService {
     _program = await ui.FragmentProgram.fromAsset('shaders/glitch.frag');
   }
 
-  /// Рендерит кадр через шейдер и возвращает готовое ui.Image
-  /// с уже наложенным эффектом.
   Future<ui.Image?> renderFrame({
     required ui.Image source,
     required double intensity,
@@ -27,10 +25,9 @@ class ShaderService {
         source.width.toDouble(),
       );
 
-      // Поворот на 90° как на экране
       canvas.translate(size.width / 2, size.height / 2);
-      canvas.rotate(3.14159265 / 2);
-      canvas.translate(-size.height / 2, -size.width / 2);
+      canvas.rotate(-3.14159265 / 2);
+      canvas.translate(-size.width / 2, -size.height / 2);
 
       final shader = _program!.fragmentShader();
       shader.setFloat(0, size.width);

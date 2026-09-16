@@ -25,7 +25,7 @@ class GlitchView extends StatelessWidget {
         width: frame.height.toDouble(),
         height: frame.width.toDouble(),
         child: Transform.rotate(
-          angle: 3.14159265 / 2,
+          angle: -3.14159265 / 2,
           child: CustomPaint(
             painter: _GlitchPainter(
               program: program,
