@@ -20,17 +20,16 @@ bool flagOn(float flag) {
 void main() {
     vec2 uv = FlutterFragCoord().xy / uSize;
     uv.y = 1.0 - uv.y;
+    uv.x = 1.0 - uv.x;
 
     vec3 color = texture(uTexture, uv).rgb;
 
-    // 1: RGB Split
     if (flagOn(1.0)) {
         float amt = 0.02 * uIntensity;
         color.r = texture(uTexture, uv + vec2(amt, 0.0)).r;
         color.b = texture(uTexture, uv - vec2(amt, 0.0)).b;
     }
 
-    // 2: VHS / scanlines
     if (flagOn(2.0)) {
         float scan = sin(uv.y * 1200.0 + uTime * 25.0) * 0.1 * uIntensity;
         color -= scan;
@@ -40,7 +39,6 @@ void main() {
         color += vec3(0.1, 0.0, 0.15) * uIntensity;
     }
 
-    // 4: DataMosh
     if (flagOn(4.0)) {
         float row = floor(uv.y * 30.0);
         float col = floor(uv.x * 20.0);
@@ -52,19 +50,16 @@ void main() {
         color = mix(color, texture(uTexture, uv + offset).rgb, 0.8);
     }
 
-    // 8: Noise
     if (flagOn(8.0)) {
         float n = rand(uv * uSize + uTime * 100.0);
         color += n * 0.4 * uIntensity;
     }
 
-    // 16: Invert pulse
     if (flagOn(16.0)) {
         float pulse = step(0.96, rand(vec2(floor(uTime * 10.0))));
         color = mix(color, vec3(1.0) - color, pulse * uIntensity);
     }
 
-    // 32: Acid tint
     if (flagOn(32.0)) {
         color *= vec3(1.2, 0.9, 1.3);
         color += vec3(0.05, 0.0, 0.1) * uIntensity;
