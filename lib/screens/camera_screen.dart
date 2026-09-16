@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/camera_service.dart';
 import '../services/media_service.dart';
-import '../services/orientation_service.dart';
 import '../services/permission_service.dart';
 import '../services/shader_service.dart';
 import '../widgets/effect_menu.dart';
@@ -24,7 +23,6 @@ class _CameraScreenState extends State<CameraScreen> {
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
-  late final OrientationService _orientation;
 
   ui.Image? _frame;
   double _intensity = 0.8;
@@ -33,30 +31,15 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isRecording = false;
   bool _initialized = false;
   bool _permissionsAsked = false;
-  int _rotationDegrees = 270;
+  int _rotationDegrees = 0;
 
   @override
   void initState() {
     super.initState();
-    _orientation = OrientationService(
-      onChanged: (deviceRotation) {
-        if (mounted) {
-          setState(() {
-            _rotationDegrees = _computeRotation(deviceRotation);
-          });
-        }
-      },
-    );
-    _orientation.start();
     _bootstrap();
     Timer.periodic(const Duration(milliseconds: 33), (_) {
       if (mounted) setState(() => _time += 0.033);
     });
-  }
-
-  int _computeRotation(int deviceRotation) {
-    final sensorOrientation = _camera.sensorOrientation;
-    return (deviceRotation - sensorOrientation + 360) % 360;
   }
 
   Future<void> _bootstrap() async {
@@ -70,11 +53,6 @@ class _CameraScreenState extends State<CameraScreen> {
 
       await _shader.load();
       await _camera.init();
-      if (mounted) {
-        setState(() {
-          _rotationDegrees = _computeRotation(_orientation.rotation);
-        });
-      }
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
       });
@@ -91,7 +69,6 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
-    _orientation.stop();
     _camera.stopStream();
     _camera.dispose();
     super.dispose();
@@ -123,7 +100,7 @@ class _CameraScreenState extends State<CameraScreen> {
       await _media.saveImage(rendered);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Глитч-фото сохранено в галерею')),
+          SnackBar(content: Text('Сохранено с поворотом $_rotationDegrees°')),
         );
       }
     } catch (e) {
@@ -190,6 +167,12 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
+  void _cycleRotation() {
+    setState(() {
+      _rotationDegrees = (_rotationDegrees + 90) % 360;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -207,6 +190,21 @@ class _CameraScreenState extends State<CameraScreen> {
                       flags: _flags,
                       rotationDegrees: _rotationDegrees,
                     ),
+            ),
+            Positioned(
+              top: 60,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: Colors.black87,
+                  child: Text(
+                    'ROTATION: $_rotationDegrees°  (tap to change)',
+                    style: const TextStyle(color: Colors.yellow, fontSize: 16),
+                  ),
+                ),
+              ),
             ),
             if (_isRecording)
               Positioned(
@@ -228,6 +226,21 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             Positioned(
               top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: _cycleRotation,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(color: Colors.yellow, width: 2),
+                  ),
+                  child: const Icon(Icons.rotate_right, color: Colors.yellow),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 70,
               right: 16,
               child: GestureDetector(
                 onTap: _showMenu,
