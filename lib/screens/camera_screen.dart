@@ -3,11 +3,11 @@ import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:gal/gal.dart';
 
 import '../constants.dart';
 import '../services/camera_service.dart';
 import '../services/media_service.dart';
+import '../services/permission_service.dart';
 import '../services/shader_service.dart';
 import '../widgets/effect_menu.dart';
 import '../widgets/glitch_view.dart';
@@ -43,6 +43,13 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> _bootstrap() async {
     try {
+      final ok = await PermissionService.ensureAll();
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не все разрешения выданы')),
+        );
+      }
+
       await _shader.load();
       await _camera.init();
       await _camera.startStream((img) {
@@ -69,9 +76,12 @@ class _CameraScreenState extends State<CameraScreen> {
   Future<void> _ensurePermissions() async {
     if (_permissionsAsked) return;
     _permissionsAsked = true;
-    try {
-      await Gal.requestAccess();
-    } catch (_) {}
+    final ok = await PermissionService.ensureAll();
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не все разрешения выданы')),
+      );
+    }
   }
 
   Future<void> _takePhoto() async {
