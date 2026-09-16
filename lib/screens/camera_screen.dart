@@ -331,4 +331,3 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 }
-~/glitch_camera_app $
