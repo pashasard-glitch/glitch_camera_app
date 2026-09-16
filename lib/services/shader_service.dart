@@ -26,7 +26,8 @@ class ShaderService {
       );
 
       canvas.translate(size.width / 2, size.height / 2);
-      canvas.rotate(-3.14159265 / 2);
+      canvas.rotate(3.14159265 / 2);
+      canvas.scale(-1.0, 1.0);
       canvas.translate(-size.width / 2, -size.height / 2);
 
       final shader = _program!.fragmentShader();
