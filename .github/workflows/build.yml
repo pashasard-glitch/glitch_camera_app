@@ -25,10 +25,7 @@ jobs:
 
       - name: Add permissions
         run: |
-          sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>|' android/app/src/main/AndroidManifest.xml
-
-      - name: Show compileSdk before
-        run: grep -n "compileSdk" android/app/build.gradle.kts || true
+          sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>|' android/app/src/main/AndroidManifest.xml
 
       - name: Bump compileSdk to 36
         run: |

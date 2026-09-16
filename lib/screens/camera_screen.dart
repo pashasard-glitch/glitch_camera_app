@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 
 import '../constants.dart';
 import '../services/camera_service.dart';
@@ -29,6 +30,7 @@ class _CameraScreenState extends State<CameraScreen> {
   int _flags = EffectFlags.rgbSplit;
   bool _isRecording = false;
   bool _initialized = false;
+  bool _permissionsAsked = false;
 
   @override
   void initState() {
@@ -40,12 +42,21 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _bootstrap() async {
-    await _shader.load();
-    await _camera.init();
-    await _camera.startStream((img) {
-      if (mounted) setState(() => _frame = img);
-    });
-    if (mounted) setState(() => _initialized = true);
+    try {
+      await _shader.load();
+      await _camera.init();
+      await _camera.startStream((img) {
+        if (mounted) setState(() => _frame = img);
+      });
+      if (mounted) setState(() => _initialized = true);
+    } catch (e) {
+      print('BOOTSTRAP ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка запуска: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -55,34 +66,61 @@ class _CameraScreenState extends State<CameraScreen> {
     super.dispose();
   }
 
+  Future<void> _ensurePermissions() async {
+    if (_permissionsAsked) return;
+    _permissionsAsked = true;
+    try {
+      await Gal.requestAccess();
+    } catch (_) {}
+  }
+
   Future<void> _takePhoto() async {
-    if (_frame == null || _shader.program == null) return;
-    final rendered = await _shader.renderFrame(
-      source: _frame!,
-      intensity: _intensity,
-      time: _time,
-      flags: _flags,
-    );
-    if (rendered == null) return;
-    await _media.saveImage(rendered);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Глитч-фото сохранено в галерею')),
+    print('TAKE PHOTO CALLED');
+    if (_frame == null || _shader.program == null) {
+      print('PHOTO: frame or shader is null');
+      return;
+    }
+    try {
+      await _ensurePermissions();
+      final rendered = await _shader.renderFrame(
+        source: _frame!,
+        intensity: _intensity,
+        time: _time,
+        flags: _flags,
       );
+      if (rendered == null) {
+        print('PHOTO: renderFrame returned null');
+        return;
+      }
+      await _media.saveImage(rendered);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Глитч-фото сохранено в галерею')),
+        );
+      }
+    } catch (e) {
+      print('PHOTO ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка фото: $e')),
+        );
+      }
     }
   }
 
   Future<void> _toggleVideo() async {
+    print('TOGGLE VIDEO CALLED, recording=$_isRecording');
     if (!_isRecording) {
-      // Пока пишем чистое видео (без глитча) — стабильная версия
       try {
+        await _ensurePermissions();
         await _camera.stopStream();
         await _camera.controller!.startVideoRecording();
         setState(() => _isRecording = true);
       } catch (e) {
+        print('VIDEO START ERROR: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ошибка записи: $e')),
+            SnackBar(content: Text('Ошибка старта записи: $e')),
           );
         }
       }
@@ -102,9 +140,10 @@ class _CameraScreenState extends State<CameraScreen> {
           );
         }
       } catch (e) {
+        print('VIDEO STOP ERROR: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ошибка видео: $e')),
+            SnackBar(content: Text('Ошибка остановки записи: $e')),
           );
         }
       }
@@ -145,10 +184,22 @@ class _CameraScreenState extends State<CameraScreen> {
                     ),
             ),
             if (_isRecording)
-              const Positioned(
+              Positioned(
                 top: 16,
                 left: 16,
-                child: _RecBadge(),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  color: Colors.red.withOpacity(0.7),
+                  child: const Text(
+                    'REC',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                ),
               ),
             Positioned(
               top: 16,
@@ -172,15 +223,43 @@ class _CameraScreenState extends State<CameraScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _circleButton(
-                    icon: Icons.camera_alt,
+                  GestureDetector(
                     onTap: _takePhoto,
-                    color: Colors.cyanAccent,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border:
+                            Border.all(color: Colors.cyanAccent, width: 3),
+                        color: Colors.black54,
+                      ),
+                      child: const Icon(Icons.camera_alt,
+                          color: Colors.cyanAccent),
+                    ),
                   ),
-                  _circleButton(
-                    icon: _isRecording ? Icons.stop : Icons.videocam,
+                  GestureDetector(
                     onTap: _toggleVideo,
-                    color: _isRecording ? Colors.redAccent : Colors.cyanAccent,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _isRecording
+                              ? Colors.redAccent
+                              : Colors.cyanAccent,
+                          width: 3,
+                        ),
+                        color: Colors.black54,
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.videocam,
+                        color: _isRecording
+                            ? Colors.redAccent
+                            : Colors.cyanAccent,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -211,46 +290,6 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _circleButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: color, width: 3),
-          color: Colors.black54,
-        ),
-        child: Icon(icon, color: color),
-      ),
-    );
-  }
-}
-
-class _RecBadge extends StatelessWidget {
-  const _RecBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: Colors.red.withOpacity(0.7),
-      child: const Text(
-        'REC',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 3,
         ),
       ),
     );
