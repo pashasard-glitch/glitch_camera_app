@@ -33,7 +33,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isRecording = false;
   bool _initialized = false;
   bool _permissionsAsked = false;
-  int _rotationDegrees = 90;
+  int _rotationDegrees = 270;
 
   @override
   void initState() {
@@ -56,7 +56,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   int _computeRotation(int deviceRotation) {
     final sensorOrientation = _camera.sensorOrientation;
-    return (sensorOrientation - deviceRotation + 360) % 360;
+    return (deviceRotation - sensorOrientation + 360) % 360;
   }
 
   Future<void> _bootstrap() async {

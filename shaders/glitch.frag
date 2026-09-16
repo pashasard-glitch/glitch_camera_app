@@ -20,7 +20,6 @@ bool flagOn(float flag) {
 void main() {
     vec2 uv = FlutterFragCoord().xy / uSize;
     uv.y = 1.0 - uv.y;
-    uv.x = 1.0 - uv.x;
 
     vec3 color = texture(uTexture, uv).rgb;
 
