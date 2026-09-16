@@ -109,11 +109,7 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _takePhoto() async {
-    print('TAKE PHOTO CALLED');
-    if (_frame == null || _shader.program == null) {
-      print('PHOTO: frame or shader is null');
-      return;
-    }
+    if (_frame == null || _shader.program == null) return;
     try {
       await _ensurePermissions();
       final rendered = await _shader.renderFrame(
@@ -123,10 +119,7 @@ class _CameraScreenState extends State<CameraScreen> {
         flags: _flags,
         rotationDegrees: _rotationDegrees,
       );
-      if (rendered == null) {
-        print('PHOTO: renderFrame returned null');
-        return;
-      }
+      if (rendered == null) return;
       await _media.saveImage(rendered);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -134,7 +127,6 @@ class _CameraScreenState extends State<CameraScreen> {
         );
       }
     } catch (e) {
-      print('PHOTO ERROR: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка фото: $e')),
@@ -144,7 +136,6 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _toggleVideo() async {
-    print('TOGGLE VIDEO CALLED, recording=$_isRecording');
     if (!_isRecording) {
       try {
         await _ensurePermissions();
@@ -152,7 +143,6 @@ class _CameraScreenState extends State<CameraScreen> {
         await _camera.controller!.startVideoRecording();
         setState(() => _isRecording = true);
       } catch (e) {
-        print('VIDEO START ERROR: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Ошибка старта записи: $e')),
@@ -175,7 +165,6 @@ class _CameraScreenState extends State<CameraScreen> {
           );
         }
       } catch (e) {
-        print('VIDEO STOP ERROR: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Ошибка остановки записи: $e')),

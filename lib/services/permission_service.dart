@@ -8,7 +8,6 @@ class PermissionService {
 
     await Permission.microphone.request();
 
-    // gal сам управляет доступом к галерее — permission_handler здесь не нужен
     final hasGal = await Gal.hasAccess();
     if (!hasGal) {
       final granted = await Gal.requestAccess();

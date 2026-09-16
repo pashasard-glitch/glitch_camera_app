@@ -7,6 +7,7 @@ import 'package:camera/camera.dart';
 class CameraService {
   CameraController? controller;
   bool _busy = false;
+  int sensorOrientation = 90;
 
   Future<void> init() async {
     final cameras = await availableCameras();
@@ -17,10 +18,12 @@ class CameraService {
       orElse: () => cameras.first,
     );
 
+    sensorOrientation = camera.sensorOrientation;
+
     controller = CameraController(
       camera,
       ResolutionPreset.low,
-      enableAudio: false,
+      enableAudio: true,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
 
