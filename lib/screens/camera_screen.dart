@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/camera_service.dart';
 import '../services/media_service.dart';
+import '../services/orientation_service.dart';
 import '../services/permission_service.dart';
 import '../services/shader_service.dart';
 import '../widgets/effect_menu.dart';
@@ -23,6 +24,7 @@ class _CameraScreenState extends State<CameraScreen> {
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
+  late final OrientationService _orientation;
 
   ui.Image? _frame;
   double _intensity = 0.8;
@@ -31,14 +33,30 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isRecording = false;
   bool _initialized = false;
   bool _permissionsAsked = false;
+  int _rotationDegrees = 90;
 
   @override
   void initState() {
     super.initState();
+    _orientation = OrientationService(
+      onChanged: (deviceRotation) {
+        if (mounted) {
+          setState(() {
+            _rotationDegrees = _computeRotation(deviceRotation);
+          });
+        }
+      },
+    );
+    _orientation.start();
     _bootstrap();
     Timer.periodic(const Duration(milliseconds: 33), (_) {
       if (mounted) setState(() => _time += 0.033);
     });
+  }
+
+  int _computeRotation(int deviceRotation) {
+    final sensorOrientation = _camera.sensorOrientation;
+    return (sensorOrientation - deviceRotation + 360) % 360;
   }
 
   Future<void> _bootstrap() async {
@@ -52,6 +70,11 @@ class _CameraScreenState extends State<CameraScreen> {
 
       await _shader.load();
       await _camera.init();
+      if (mounted) {
+        setState(() {
+          _rotationDegrees = _computeRotation(_orientation.rotation);
+        });
+      }
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
       });
@@ -68,6 +91,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
+    _orientation.stop();
     _camera.stopStream();
     _camera.dispose();
     super.dispose();
@@ -97,6 +121,7 @@ class _CameraScreenState extends State<CameraScreen> {
         intensity: _intensity,
         time: _time,
         flags: _flags,
+        rotationDegrees: _rotationDegrees,
       );
       if (rendered == null) {
         print('PHOTO: renderFrame returned null');
@@ -188,120 +213,4 @@ class _CameraScreenState extends State<CameraScreen> {
                   : GlitchView(
                       program: _shader.program!,
                       frame: _frame!,
-                      intensity: _intensity,
-                      time: _time,
-                      flags: _flags,
-                    ),
-            ),
-            if (_isRecording)
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  color: Colors.red.withOpacity(0.7),
-                  child: const Text(
-                    'REC',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                ),
-              ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: GestureDetector(
-                onTap: _showMenu,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    border: Border.all(color: Colors.cyanAccent, width: 2),
-                  ),
-                  child: const Icon(Icons.tune, color: Colors.cyanAccent),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 120,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  GestureDetector(
-                    onTap: _takePhoto,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border:
-                            Border.all(color: Colors.cyanAccent, width: 3),
-                        color: Colors.black54,
-                      ),
-                      child: const Icon(Icons.camera_alt,
-                          color: Colors.cyanAccent),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _toggleVideo,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _isRecording
-                              ? Colors.redAccent
-                              : Colors.cyanAccent,
-                          width: 3,
-                        ),
-                        color: Colors.black54,
-                      ),
-                      child: Icon(
-                        _isRecording ? Icons.stop : Icons.videocam,
-                        color: _isRecording
-                            ? Colors.redAccent
-                            : Colors.cyanAccent,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              bottom: 24,
-              left: 20,
-              right: 20,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Slider(
-                    value: _intensity,
-                    min: 0.0,
-                    max: 1.5,
-                    activeColor: Colors.cyanAccent,
-                    onChanged: (v) => setState(() => _intensity = v),
-                  ),
-                  const Text(
-                    'INTENSITY',
-                    style: TextStyle(
-                      color: Colors.cyanAccent,
-                      letterSpacing: 4,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+                      int
