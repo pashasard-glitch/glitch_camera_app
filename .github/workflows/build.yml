@@ -25,7 +25,9 @@ jobs:
 
       - name: Add permissions
         run: |
-          sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>|' android/app/src/main/AndroidManifest.xml
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>\n    <uses-feature android:name="android.hardware.camera" android:required="true"/>' android/app/src/main/AndroidManifest.xml
+          echo "--- Manifest after insert ---"
+          cat android/app/src/main/AndroidManifest.xml
 
       - name: Bump compileSdk to 36
         run: |
