@@ -213,4 +213,122 @@ class _CameraScreenState extends State<CameraScreen> {
                   : GlitchView(
                       program: _shader.program!,
                       frame: _frame!,
-                      int
+                      intensity: _intensity,
+                      time: _time,
+                      flags: _flags,
+                      rotationDegrees: _rotationDegrees,
+                    ),
+            ),
+            if (_isRecording)
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  color: Colors.red.withOpacity(0.7),
+                  child: const Text(
+                    'REC',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: _showMenu,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(color: Colors.cyanAccent, width: 2),
+                  ),
+                  child: const Icon(Icons.tune, color: Colors.cyanAccent),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 120,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  GestureDetector(
+                    onTap: _takePhoto,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border:
+                            Border.all(color: Colors.cyanAccent, width: 3),
+                        color: Colors.black54,
+                      ),
+                      child: const Icon(Icons.camera_alt,
+                          color: Colors.cyanAccent),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _toggleVideo,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _isRecording
+                              ? Colors.redAccent
+                              : Colors.cyanAccent,
+                          width: 3,
+                        ),
+                        color: Colors.black54,
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.videocam,
+                        color: _isRecording
+                            ? Colors.redAccent
+                            : Colors.cyanAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              bottom: 24,
+              left: 20,
+              right: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Slider(
+                    value: _intensity,
+                    min: 0.0,
+                    max: 1.5,
+                    activeColor: Colors.cyanAccent,
+                    onChanged: (v) => setState(() => _intensity = v),
+                  ),
+                  const Text(
+                    'INTENSITY',
+                    style: TextStyle(
+                      color: Colors.cyanAccent,
+                      letterSpacing: 4,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+~/glitch_camera_app $
