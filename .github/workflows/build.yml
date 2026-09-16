@@ -33,6 +33,12 @@ jobs:
         run: |
           sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 36|g' android/app/build.gradle.kts
 
+      - name: Add Maven Central as fallback plugin repository
+        run: |
+          sed -i '/pluginManagement {/a\    repositories {\n        gradlePluginPortal()\n        google()\n        mavenCentral()\n    }' android/settings.gradle.kts || true
+          echo "--- settings.gradle.kts after ---"
+          cat android/settings.gradle.kts
+
       - name: Show compileSdk after
         run: grep -n "compileSdk" android/app/build.gradle.kts || true
 
