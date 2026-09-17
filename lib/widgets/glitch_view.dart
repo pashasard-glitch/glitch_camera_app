@@ -7,7 +7,6 @@ class GlitchView extends StatelessWidget {
   final double intensity;
   final double time;
   final int flags;
-  final int rotationDegrees;
   final bool mirror;
 
   const GlitchView({
@@ -17,21 +16,16 @@ class GlitchView extends StatelessWidget {
     required this.intensity,
     required this.time,
     required this.flags,
-    required this.rotationDegrees,
     required this.mirror,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = rotationDegrees == 90 || rotationDegrees == 270;
-    final displayWidth = isLandscape ? frame.height.toDouble() : frame.width.toDouble();
-    final displayHeight = isLandscape ? frame.width.toDouble() : frame.height.toDouble();
-
     return FittedBox(
       fit: BoxFit.cover,
       child: SizedBox(
-        width: displayWidth,
-        height: displayHeight,
+        width: frame.width.toDouble(),
+        height: frame.height.toDouble(),
         child: CustomPaint(
           painter: _GlitchPainter(
             program: program,
@@ -39,7 +33,6 @@ class GlitchView extends StatelessWidget {
             intensity: intensity,
             time: time,
             flags: flags,
-            rotationDegrees: rotationDegrees,
             mirror: mirror,
           ),
         ),
@@ -54,7 +47,6 @@ class _GlitchPainter extends CustomPainter {
   final double intensity;
   final double time;
   final int flags;
-  final int rotationDegrees;
   final bool mirror;
 
   _GlitchPainter({
@@ -63,63 +55,28 @@ class _GlitchPainter extends CustomPainter {
     required this.intensity,
     required this.time,
     required this.flags,
-    required this.rotationDegrees,
     required this.mirror,
   });
 
-  void _applyPortraitMirror(Canvas canvas, double width, double height) {
-    canvas.translate(width, 0);
-    canvas.scale(-1, 1);
-  }
-
-  void _applyLandscapeMirror(Canvas canvas, double width, double height) {
-    canvas.translate(0, height);
-    canvas.scale(1, -1);
-  }
-
   @override
   void paint(Canvas canvas, Size size) {
-    final srcW = frame.width.toDouble();
-    final srcH = frame.height.toDouble();
-    final isLandscape = rotationDegrees == 90 || rotationDegrees == 270;
-
     canvas.save();
 
     if (mirror) {
-      if (isLandscape) {
-        _applyPortraitMirror(canvas, size.width, size.height);
-      } else {
-        _applyLandscapeMirror(canvas, size.width, size.height);
-      }
-    }
-
-    switch (rotationDegrees) {
-      case 90:
-        canvas.translate(size.width, 0);
-        canvas.rotate(3.14159265 / 2);
-        break;
-      case 180:
-        canvas.translate(size.width, size.height);
-        canvas.rotate(3.14159265);
-        break;
-      case 270:
-        canvas.translate(0, size.height);
-        canvas.rotate(-3.14159265 / 2);
-        break;
-      default:
-        break;
+      canvas.translate(size.width, 0);
+      canvas.scale(-1, 1);
     }
 
     final shader = program.fragmentShader();
-    shader.setFloat(0, srcW);
-    shader.setFloat(1, srcH);
+    shader.setFloat(0, size.width);
+    shader.setFloat(1, size.height);
     shader.setFloat(2, time);
     shader.setFloat(3, intensity);
     shader.setFloat(4, flags.toDouble());
     shader.setImageSampler(0, frame);
 
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, srcW, srcH),
+      Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..shader = shader,
     );
     canvas.restore();

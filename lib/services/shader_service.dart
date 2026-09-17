@@ -10,16 +10,6 @@ class ShaderService {
     _program = await ui.FragmentProgram.fromAsset('shaders/glitch.frag');
   }
 
-  void _applyPortraitMirror(Canvas canvas, double width, double height) {
-    canvas.translate(width, 0);
-    canvas.scale(-1, 1);
-  }
-
-  void _applyLandscapeMirror(Canvas canvas, double width, double height) {
-    canvas.translate(0, height);
-    canvas.scale(1, -1);
-  }
-
   Future<ui.Image?> renderFrame({
     required ui.Image source,
     required double intensity,
@@ -40,14 +30,6 @@ class ShaderService {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
-      if (mirror) {
-        if (isLandscape) {
-          _applyPortraitMirror(canvas, dstW, dstH);
-        } else {
-          _applyLandscapeMirror(canvas, dstW, dstH);
-        }
-      }
-
       switch (rotationDegrees) {
         case 90:
           canvas.translate(dstW, 0);
@@ -63,6 +45,11 @@ class ShaderService {
           break;
         default:
           break;
+      }
+
+      if (mirror) {
+        canvas.translate(srcW, 0);
+        canvas.scale(-1, 1);
       }
 
       final shader = _program!.fragmentShader();
