@@ -7,7 +7,9 @@ class GlitchView extends StatelessWidget {
   final double intensity;
   final double time;
   final int flags;
-  final bool mirror;
+  final bool mirrorPortrait;
+  final bool mirrorLandscape;
+  final bool isLandscape;
 
   const GlitchView({
     super.key,
@@ -16,11 +18,15 @@ class GlitchView extends StatelessWidget {
     required this.intensity,
     required this.time,
     required this.flags,
-    required this.mirror,
+    required this.mirrorPortrait,
+    required this.mirrorLandscape,
+    required this.isLandscape,
   });
 
   @override
   Widget build(BuildContext context) {
+    final mirror = isLandscape ? mirrorLandscape : mirrorPortrait;
+
     return FittedBox(
       fit: BoxFit.cover,
       child: SizedBox(

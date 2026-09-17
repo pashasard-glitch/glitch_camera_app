@@ -34,7 +34,10 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _initialized = false;
   bool _permissionsAsked = false;
   int _rotationDegrees = 90;
-  bool _mirror = false;
+  bool _mirrorPortrait = false;
+  bool _mirrorLandscape = false;
+
+  bool get _isLandscape => _rotationDegrees == 90 || _rotationDegrees == 270;
 
   @override
   void initState() {
@@ -114,7 +117,8 @@ class _CameraScreenState extends State<CameraScreen> {
         time: _time,
         flags: _flags,
         rotationDegrees: _rotationDegrees,
-        mirror: _mirror,
+        mirrorPortrait: _mirrorPortrait,
+        mirrorLandscape: _mirrorLandscape,
       );
       if (rendered == null) return;
       await _media.saveImage(rendered);
@@ -187,8 +191,12 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
-  void _toggleMirror() {
-    setState(() => _mirror = !_mirror);
+  void _toggleMirrorPortrait() {
+    setState(() => _mirrorPortrait = !_mirrorPortrait);
+  }
+
+  void _toggleMirrorLandscape() {
+    setState(() => _mirrorLandscape = !_mirrorLandscape);
   }
 
   @override
@@ -210,7 +218,9 @@ class _CameraScreenState extends State<CameraScreen> {
                         intensity: _intensity,
                         time: _time,
                         flags: _flags,
-                        mirror: _mirror,
+                        mirrorPortrait: _mirrorPortrait,
+                        mirrorLandscape: _mirrorLandscape,
+                        isLandscape: _isLandscape,
                       ),
                     ),
             ),
@@ -236,25 +246,46 @@ class _CameraScreenState extends State<CameraScreen> {
               top: 16,
               right: 16,
               child: GestureDetector(
-                onTap: _toggleMirror,
+                onTap: _toggleMirrorPortrait,
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     border: Border.all(
-                      color: _mirror ? Colors.orangeAccent : Colors.cyanAccent,
+                      color: _mirrorPortrait ? Colors.orangeAccent : Colors.cyanAccent,
                       width: 2,
                     ),
                   ),
                   child: Icon(
-                    Icons.flip,
-                    color: _mirror ? Colors.orangeAccent : Colors.cyanAccent,
+                    Icons.stay_current_portrait,
+                    color: _mirrorPortrait ? Colors.orangeAccent : Colors.cyanAccent,
                   ),
                 ),
               ),
             ),
             Positioned(
               top: 70,
+              right: 16,
+              child: GestureDetector(
+                onTap: _toggleMirrorLandscape,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(
+                      color: _mirrorLandscape ? Colors.orangeAccent : Colors.cyanAccent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.stay_current_landscape,
+                    color: _mirrorLandscape ? Colors.orangeAccent : Colors.cyanAccent,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 124,
               right: 16,
               child: GestureDetector(
                 onTap: _showMenu,

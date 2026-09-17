@@ -16,7 +16,8 @@ class ShaderService {
     required double time,
     required int flags,
     required int rotationDegrees,
-    required bool mirror,
+    required bool mirrorPortrait,
+    required bool mirrorLandscape,
   }) async {
     if (_program == null) return null;
     try {
@@ -26,6 +27,7 @@ class ShaderService {
       final isLandscape = rotationDegrees == 90 || rotationDegrees == 270;
       final dstW = isLandscape ? srcH : srcW;
       final dstH = isLandscape ? srcW : srcH;
+      final mirror = isLandscape ? mirrorLandscape : mirrorPortrait;
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
