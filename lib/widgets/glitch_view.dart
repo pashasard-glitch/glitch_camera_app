@@ -23,9 +23,9 @@ class GlitchView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final swapDims = rotationDegrees == 90 || rotationDegrees == 270;
-    final displayWidth = swapDims ? frame.height.toDouble() : frame.width.toDouble();
-    final displayHeight = swapDims ? frame.width.toDouble() : frame.height.toDouble();
+    final isLandscape = rotationDegrees == 90 || rotationDegrees == 270;
+    final displayWidth = isLandscape ? frame.height.toDouble() : frame.width.toDouble();
+    final displayHeight = isLandscape ? frame.width.toDouble() : frame.height.toDouble();
 
     return FittedBox(
       fit: BoxFit.cover,
@@ -67,21 +67,29 @@ class _GlitchPainter extends CustomPainter {
     required this.mirror,
   });
 
+  void _applyPortraitMirror(Canvas canvas, double width, double height) {
+    canvas.translate(width, 0);
+    canvas.scale(-1, 1);
+  }
+
+  void _applyLandscapeMirror(Canvas canvas, double width, double height) {
+    canvas.translate(0, height);
+    canvas.scale(1, -1);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final srcW = frame.width.toDouble();
     final srcH = frame.height.toDouble();
-    final swapDims = rotationDegrees == 90 || rotationDegrees == 270;
+    final isLandscape = rotationDegrees == 90 || rotationDegrees == 270;
 
     canvas.save();
 
     if (mirror) {
-      if (swapDims) {
-        canvas.translate(0, size.height);
-        canvas.scale(1, -1);
+      if (isLandscape) {
+        _applyPortraitMirror(canvas, size.width, size.height);
       } else {
-        canvas.translate(size.width, 0);
-        canvas.scale(-1, 1);
+        _applyLandscapeMirror(canvas, size.width, size.height);
       }
     }
 
