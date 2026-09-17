@@ -64,5 +64,20 @@ void main() {
         color += vec3(0.05, 0.0, 0.1) * uIntensity;
     }
 
+    if (flagOn(64.0)) {
+        float levels = mix(8.0, 2.5, uIntensity);
+        vec3 posterized = floor(color * levels) / levels;
+        color = mix(color, posterized, min(uIntensity * 1.3, 1.0));
+
+        float bandCount = 50.0;
+        float bandY = floor(uv.y * bandCount);
+        float streakChance = rand(vec2(bandY, floor(uTime * 4.0)));
+        float streak = step(0.8, streakChance);
+        float streakOffset = (rand(vec2(bandY, 77.0)) - 0.5) * 0.25 * uIntensity;
+        vec3 streakColor = texture(uTexture, uv + vec2(streakOffset, 0.0)).rgb;
+        vec3 streakPosterized = floor(streakColor * levels) / levels;
+        color = mix(color, streakPosterized, streak * 0.85);
+    }
+
     fragColor = vec4(color, 1.0);
 }
