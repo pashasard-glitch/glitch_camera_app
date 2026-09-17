@@ -34,6 +34,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _initialized = false;
   bool _permissionsAsked = false;
   int _rotationDegrees = 90;
+  bool _mirror = false;
 
   @override
   void initState() {
@@ -113,6 +114,7 @@ class _CameraScreenState extends State<CameraScreen> {
         time: _time,
         flags: _flags,
         rotationDegrees: _rotationDegrees,
+        mirror: _mirror,
       );
       if (rendered == null) return;
       await _media.saveImage(rendered);
@@ -185,6 +187,10 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
+  void _toggleMirror() {
+    setState(() => _mirror = !_mirror);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -201,6 +207,7 @@ class _CameraScreenState extends State<CameraScreen> {
                       time: _time,
                       flags: _flags,
                       rotationDegrees: _rotationDegrees,
+                      mirror: _mirror,
                     ),
             ),
             if (_isRecording)
@@ -223,6 +230,27 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             Positioned(
               top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: _toggleMirror,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(
+                      color: _mirror ? Colors.orangeAccent : Colors.cyanAccent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.flip,
+                    color: _mirror ? Colors.orangeAccent : Colors.cyanAccent,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 70,
               right: 16,
               child: GestureDetector(
                 onTap: _showMenu,

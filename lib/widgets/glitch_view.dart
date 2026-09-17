@@ -8,6 +8,7 @@ class GlitchView extends StatelessWidget {
   final double time;
   final int flags;
   final int rotationDegrees;
+  final bool mirror;
 
   const GlitchView({
     super.key,
@@ -17,6 +18,7 @@ class GlitchView extends StatelessWidget {
     required this.time,
     required this.flags,
     required this.rotationDegrees,
+    required this.mirror,
   });
 
   @override
@@ -38,6 +40,7 @@ class GlitchView extends StatelessWidget {
             time: time,
             flags: flags,
             rotationDegrees: rotationDegrees,
+            mirror: mirror,
           ),
         ),
       ),
@@ -52,6 +55,7 @@ class _GlitchPainter extends CustomPainter {
   final double time;
   final int flags;
   final int rotationDegrees;
+  final bool mirror;
 
   _GlitchPainter({
     required this.program,
@@ -60,6 +64,7 @@ class _GlitchPainter extends CustomPainter {
     required this.time,
     required this.flags,
     required this.rotationDegrees,
+    required this.mirror,
   });
 
   @override
@@ -83,6 +88,11 @@ class _GlitchPainter extends CustomPainter {
         break;
       default:
         break;
+    }
+
+    if (mirror) {
+      canvas.translate(srcW, 0);
+      canvas.scale(-1, 1);
     }
 
     final shader = program.fragmentShader();

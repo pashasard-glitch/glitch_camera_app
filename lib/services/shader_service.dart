@@ -16,6 +16,7 @@ class ShaderService {
     required double time,
     required int flags,
     required int rotationDegrees,
+    required bool mirror,
   }) async {
     if (_program == null) return null;
     try {
@@ -44,6 +45,11 @@ class ShaderService {
           break;
         default:
           break;
+      }
+
+      if (mirror) {
+        canvas.translate(srcW, 0);
+        canvas.scale(-1, 1);
       }
 
       final shader = _program!.fragmentShader();
