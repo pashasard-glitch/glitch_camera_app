@@ -71,12 +71,18 @@ class _GlitchPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final srcW = frame.width.toDouble();
     final srcH = frame.height.toDouble();
+    final swapDims = rotationDegrees == 90 || rotationDegrees == 270;
 
     canvas.save();
 
     if (mirror) {
-      canvas.translate(size.width, 0);
-      canvas.scale(-1, 1);
+      if (swapDims) {
+        canvas.translate(0, size.height);
+        canvas.scale(1, -1);
+      } else {
+        canvas.translate(size.width, 0);
+        canvas.scale(-1, 1);
+      }
     }
 
     switch (rotationDegrees) {

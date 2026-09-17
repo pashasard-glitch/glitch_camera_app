@@ -31,8 +31,13 @@ class ShaderService {
       final canvas = Canvas(recorder);
 
       if (mirror) {
-        canvas.translate(dstW, 0);
-        canvas.scale(-1, 1);
+        if (swapDims) {
+          canvas.translate(0, dstH);
+          canvas.scale(1, -1);
+        } else {
+          canvas.translate(dstW, 0);
+          canvas.scale(-1, 1);
+        }
       }
 
       switch (rotationDegrees) {
