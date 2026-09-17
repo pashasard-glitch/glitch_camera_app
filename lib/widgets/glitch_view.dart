@@ -73,6 +73,12 @@ class _GlitchPainter extends CustomPainter {
     final srcH = frame.height.toDouble();
 
     canvas.save();
+
+    if (mirror) {
+      canvas.translate(size.width, 0);
+      canvas.scale(-1, 1);
+    }
+
     switch (rotationDegrees) {
       case 90:
         canvas.translate(size.width, 0);
@@ -88,11 +94,6 @@ class _GlitchPainter extends CustomPainter {
         break;
       default:
         break;
-    }
-
-    if (mirror) {
-      canvas.translate(srcW, 0);
-      canvas.scale(-1, 1);
     }
 
     final shader = program.fragmentShader();

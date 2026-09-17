@@ -30,6 +30,11 @@ class ShaderService {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
+      if (mirror) {
+        canvas.translate(dstW, 0);
+        canvas.scale(-1, 1);
+      }
+
       switch (rotationDegrees) {
         case 90:
           canvas.translate(dstW, 0);
@@ -45,11 +50,6 @@ class ShaderService {
           break;
         default:
           break;
-      }
-
-      if (mirror) {
-        canvas.translate(srcW, 0);
-        canvas.scale(-1, 1);
       }
 
       final shader = _program!.fragmentShader();
