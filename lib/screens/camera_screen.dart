@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/camera_service.dart';
 import '../services/media_service.dart';
+import '../services/orientation_service.dart';
 import '../services/permission_service.dart';
 import '../services/shader_service.dart';
 import '../widgets/effect_menu.dart';
@@ -23,6 +24,7 @@ class _CameraScreenState extends State<CameraScreen> {
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
+  late final OrientationService _orientation;
 
   ui.Image? _frame;
   double _intensity = 0.8;
@@ -37,6 +39,16 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
+    _orientation = OrientationService(
+      onChanged: (rotation) {
+        if (mounted) {
+          setState(() {
+            _rotationDegrees = rotation;
+          });
+        }
+      },
+    );
+    _orientation.start();
     _bootstrap();
     Timer.periodic(const Duration(milliseconds: 33), (_) {
       if (mounted) setState(() => _time += 0.033);
@@ -54,12 +66,11 @@ class _CameraScreenState extends State<CameraScreen> {
 
       await _shader.load();
       await _camera.init();
-
-      final sensorOrientation = _camera.controller?.description.sensorOrientation ?? 90;
       if (mounted) {
-        setState(() => _rotationDegrees = sensorOrientation);
+        setState(() {
+          _rotationDegrees = _orientation.rotationDegrees;
+        });
       }
-
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
       });
@@ -76,6 +87,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
+    _orientation.stop();
     _camera.stopStream();
     _camera.dispose();
     super.dispose();
@@ -188,24 +200,18 @@ class _CameraScreenState extends State<CameraScreen> {
             Positioned.fill(
               child: !_initialized || _frame == null || _shader.program == null
                   ? const Center(child: CircularProgressIndicator())
-                  : OrientationBuilder(
-                      builder: (context, orientation) {
-                        final target =
-                            orientation == Orientation.landscape ? 0 : 90;
-                        return AnimatedRotation(
-                          turns: target / 360.0,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                          child: GlitchView(
-                            program: _shader.program!,
-                            frame: _frame!,
-                            intensity: _intensity,
-                            time: _time,
-                            flags: _flags,
-                            mirror: _mirror,
-                          ),
-                        );
-                      },
+                  : AnimatedRotation(
+                      turns: _rotationDegrees / 360.0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: GlitchView(
+                        program: _shader.program!,
+                        frame: _frame!,
+                        intensity: _intensity,
+                        time: _time,
+                        flags: _flags,
+                        mirror: _mirror,
+                      ),
                     ),
             ),
             if (_isRecording)
