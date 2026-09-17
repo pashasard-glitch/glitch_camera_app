@@ -15,7 +15,7 @@ class GlitchCameraApp extends StatelessWidget {
     return MaterialApp(
       title: 'Glitch Camera',
       theme: ThemeData.dark(),
-      home: const CameraScreen(),
+      home: CameraScreen(),
     );
   }
 }
