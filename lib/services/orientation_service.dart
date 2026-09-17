@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'package:sensors_plus/sensors_plus.dart';
 
+/// Определяет только "портрет или бок" и сразу отдаёт готовый угол
+/// поворота для шейдера — 90° для портрета, 270° для бокового положения.
+/// Подобрано опытным путём под конкретное устройство/камеру.
 class OrientationService {
-  int _rotation = 0;
-  int get rotation => _rotation;
+  int _rotationDegrees = 90;
+  int get rotationDegrees => _rotationDegrees;
 
   StreamSubscription<AccelerometerEvent>? _sub;
-  final void Function(int rotation)? onChanged;
+  final void Function(int rotationDegrees)? onChanged;
 
   OrientationService({this.onChanged});
 
@@ -15,18 +18,14 @@ class OrientationService {
       final x = event.x;
       final y = event.y;
 
-      if (x.abs() < 3 && y.abs() < 3) return;
+      if (x.abs() < 2 && y.abs() < 2) return;
 
-      int newRotation;
-      if (x.abs() > y.abs()) {
-        newRotation = x > 0 ? 90 : 270;
-      } else {
-        newRotation = y > 0 ? 0 : 180;
-      }
+      final isPortrait = y.abs() > x.abs();
+      final newRotation = isPortrait ? 90 : 270;
 
-      if (newRotation != _rotation) {
-        _rotation = newRotation;
-        onChanged?.call(_rotation);
+      if (newRotation != _rotationDegrees) {
+        _rotationDegrees = newRotation;
+        onChanged?.call(_rotationDegrees);
       }
     });
   }
