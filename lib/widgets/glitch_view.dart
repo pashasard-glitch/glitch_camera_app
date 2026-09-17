@@ -7,9 +7,6 @@ class GlitchView extends StatelessWidget {
   final double intensity;
   final double time;
   final int flags;
-  final bool mirrorPortrait;
-  final bool mirrorLandscape;
-  final bool isLandscape;
 
   const GlitchView({
     super.key,
@@ -18,15 +15,10 @@ class GlitchView extends StatelessWidget {
     required this.intensity,
     required this.time,
     required this.flags,
-    required this.mirrorPortrait,
-    required this.mirrorLandscape,
-    required this.isLandscape,
   });
 
   @override
   Widget build(BuildContext context) {
-    final mirror = isLandscape ? mirrorLandscape : mirrorPortrait;
-
     return FittedBox(
       fit: BoxFit.cover,
       child: SizedBox(
@@ -39,7 +31,6 @@ class GlitchView extends StatelessWidget {
             intensity: intensity,
             time: time,
             flags: flags,
-            mirror: mirror,
           ),
         ),
       ),
@@ -53,7 +44,6 @@ class _GlitchPainter extends CustomPainter {
   final double intensity;
   final double time;
   final int flags;
-  final bool mirror;
 
   _GlitchPainter({
     required this.program,
@@ -61,18 +51,10 @@ class _GlitchPainter extends CustomPainter {
     required this.intensity,
     required this.time,
     required this.flags,
-    required this.mirror,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.save();
-
-    if (mirror) {
-      canvas.translate(size.width, 0);
-      canvas.scale(-1, 1);
-    }
-
     final shader = program.fragmentShader();
     shader.setFloat(0, size.width);
     shader.setFloat(1, size.height);
@@ -85,7 +67,6 @@ class _GlitchPainter extends CustomPainter {
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..shader = shader,
     );
-    canvas.restore();
   }
 
   @override

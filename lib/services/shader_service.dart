@@ -16,8 +16,7 @@ class ShaderService {
     required double time,
     required int flags,
     required int rotationDegrees,
-    required bool mirrorPortrait,
-    required bool mirrorLandscape,
+    required bool mirror,
   }) async {
     if (_program == null) return null;
     try {
@@ -27,10 +26,14 @@ class ShaderService {
       final isLandscape = rotationDegrees == 90 || rotationDegrees == 270;
       final dstW = isLandscape ? srcH : srcW;
       final dstH = isLandscape ? srcW : srcH;
-      final mirror = isLandscape ? mirrorLandscape : mirrorPortrait;
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
+
+      if (mirror) {
+        canvas.translate(dstW, 0);
+        canvas.scale(-1, 1);
+      }
 
       switch (rotationDegrees) {
         case 90:
@@ -47,11 +50,6 @@ class ShaderService {
           break;
         default:
           break;
-      }
-
-      if (mirror) {
-        canvas.translate(srcW, 0);
-        canvas.scale(-1, 1);
       }
 
       final shader = _program!.fragmentShader();
