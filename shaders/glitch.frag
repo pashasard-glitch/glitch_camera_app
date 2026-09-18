@@ -79,5 +79,33 @@ void main() {
         color = mix(color, streakPosterized, streak * 0.85);
     }
 
+    if (flagOn(128.0)) {
+        float line = sin(uv.y * uSize.y * 1.5) * 0.5 + 0.5;
+        float darken = mix(1.0, line, 0.5 * uIntensity);
+        color *= darken;
+    }
+
+    if (flagOn(256.0)) {
+        float scratchX = rand(vec2(floor(uTime * 8.0), 3.0));
+        float dist = abs(uv.x - scratchX);
+        float scratch = smoothstep(0.002, 0.0, dist) * step(0.5, rand(vec2(floor(uTime * 8.0), 9.0)));
+        color += scratch * 0.6 * uIntensity;
+
+        float speckle = step(0.995, rand(uv * uSize + uTime * 50.0));
+        color += speckle * 0.8;
+    }
+
+    if (flagOn(512.0)) {
+        float gray = dot(color, vec3(0.299, 0.587, 0.114));
+        vec3 sepia = vec3(gray * 1.2, gray * 1.0, gray * 0.75);
+        color = mix(color, sepia, 0.6 * uIntensity);
+
+        float dist = distance(uv, vec2(0.5));
+        float vignette = smoothstep(0.9, 0.3, dist);
+        color *= mix(1.0, vignette, 0.5 * uIntensity);
+
+        color = mix(color, color * 0.85 + 0.05, 0.4 * uIntensity);
+    }
+
     fragColor = vec4(color, 1.0);
 }
