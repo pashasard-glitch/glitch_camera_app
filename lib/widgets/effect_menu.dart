@@ -14,22 +14,24 @@ class EffectMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'EFFECTS',
-            style: TextStyle(
-              color: Colors.cyanAccent,
-              fontSize: 18,
-              letterSpacing: 6,
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'EFFECTS',
+              style: TextStyle(
+                color: Colors.cyanAccent,
+                fontSize: 18,
+                letterSpacing: 6,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          ...EffectFlags.all.map((e) => _tile(e.key, e.value)),
-        ],
+            const SizedBox(height: 10),
+            ...EffectFlags.all.map((e) => _tile(e.key, e.value)),
+          ],
+        ),
       ),
     );
   }
