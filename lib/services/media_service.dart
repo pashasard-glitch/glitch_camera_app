@@ -25,4 +25,14 @@ class MediaService {
     final dir = await getTemporaryDirectory();
     return '${dir.path}/glitch_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
   }
+
+  Future<String> tempVideoNoAudioPath() async {
+    final dir = await getTemporaryDirectory();
+    return '${dir.path}/glitch_video_raw_${DateTime.now().millisecondsSinceEpoch}.mp4';
+  }
+
+  Future<String> tempAudioPath() async {
+    final dir = await getTemporaryDirectory();
+    return '${dir.path}/glitch_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+  }
 }
