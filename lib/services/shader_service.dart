@@ -12,7 +12,7 @@ class ShaderService {
 
   Future<ui.Image?> renderFrame({
     required ui.Image source,
-    required double intensity,
+    required List<double> effectIntensities,
     required double time,
     required int flags,
     required int rotationDegrees,
@@ -56,8 +56,13 @@ class ShaderService {
       shader.setFloat(0, srcW);
       shader.setFloat(1, srcH);
       shader.setFloat(2, time);
-      shader.setFloat(3, intensity);
-      shader.setFloat(4, flags.toDouble());
+      shader.setFloat(3, flags.toDouble());
+      for (int i = 0; i < 10; i++) {
+        shader.setFloat(
+          4 + i,
+          i < effectIntensities.length ? effectIntensities[i] : 0.8,
+        );
+      }
       shader.setImageSampler(0, source);
 
       canvas.drawRect(

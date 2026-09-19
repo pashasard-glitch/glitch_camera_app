@@ -33,9 +33,11 @@ class _CameraScreenState extends State<CameraScreen> {
   late final OrientationService _orientation;
 
   ui.Image? _frame;
-  double _intensity = 0.8;
   double _time = 0.0;
   int _flags = EffectFlags.rgbSplit;
+  final Map<int, double> _effectIntensities = {
+    for (final e in EffectFlags.all) e.value: 0.8,
+  };
   bool _isRecording = false;
   bool _initialized = false;
   bool _permissionsAsked = false;
@@ -52,6 +54,12 @@ class _CameraScreenState extends State<CameraScreen> {
   Timer? _focusIndicatorTimer;
 
   int get _effectiveRotation => (_rotationDegrees + _manualRotationOffset) % 360;
+
+  List<double> _intensityList() {
+    return EffectFlags.all
+        .map((e) => _effectIntensities[e.value] ?? 0.8)
+        .toList();
+  }
 
   @override
   void initState() {
@@ -168,7 +176,7 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       final rendered = await _shader.renderFrame(
         source: img,
-        intensity: _intensity,
+        effectIntensities: _intensityList(),
         time: _time,
         flags: _flags,
         rotationDegrees: _videoRotation,
@@ -214,7 +222,7 @@ class _CameraScreenState extends State<CameraScreen> {
       await _ensurePermissions();
       final rendered = await _shader.renderFrame(
         source: _frame!,
-        intensity: _intensity,
+        effectIntensities: _intensityList(),
         time: _time,
         flags: _flags,
         rotationDegrees: _effectiveRotation,
@@ -305,11 +313,17 @@ class _CameraScreenState extends State<CameraScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black.withOpacity(0.95),
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (context, setSheet) => EffectMenu(
           flags: _flags,
-          onChanged: (flag) {
+          intensities: _effectIntensities,
+          onToggle: (flag) {
             setState(() => _flags ^= flag);
+            setSheet(() {});
+          },
+          onIntensityChanged: (flag, value) {
+            setState(() => _effectIntensities[flag] = value);
             setSheet(() {});
           },
         ),
@@ -345,7 +359,7 @@ class _CameraScreenState extends State<CameraScreen> {
                               child: GlitchView(
                                 program: _shader.program!,
                                 frame: _frame!,
-                                intensity: _intensity,
+                                effectIntensities: _intensityList(),
                                 time: _time,
                                 flags: _flags,
                               ),
@@ -474,7 +488,7 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
             Positioned(
-              bottom: 120,
+              bottom: 40,
               left: 0,
               right: 0,
               child: Row(
@@ -521,34 +535,9 @@ class _CameraScreenState extends State<CameraScreen> {
                 ],
               ),
             ),
-            Positioned(
-              bottom: 24,
-              left: 20,
-              right: 20,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Slider(
-                    value: _intensity,
-                    min: 0.0,
-                    max: 1.5,
-                    activeColor: Colors.cyanAccent,
-                    onChanged: (v) => setState(() => _intensity = v),
-                  ),
-                  const Text(
-                    'INTENSITY',
-                    style: TextStyle(
-                      color: Colors.cyanAccent,
-                      letterSpacing: 4,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
     );
   }
-}
+}}

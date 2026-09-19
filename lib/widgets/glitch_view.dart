@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class GlitchView extends StatelessWidget {
   final ui.FragmentProgram program;
   final ui.Image frame;
-  final double intensity;
+  final List<double> effectIntensities;
   final double time;
   final int flags;
 
@@ -12,7 +12,7 @@ class GlitchView extends StatelessWidget {
     super.key,
     required this.program,
     required this.frame,
-    required this.intensity,
+    required this.effectIntensities,
     required this.time,
     required this.flags,
   });
@@ -28,7 +28,7 @@ class GlitchView extends StatelessWidget {
           painter: _GlitchPainter(
             program: program,
             frame: frame,
-            intensity: intensity,
+            effectIntensities: effectIntensities,
             time: time,
             flags: flags,
           ),
@@ -41,14 +41,14 @@ class GlitchView extends StatelessWidget {
 class _GlitchPainter extends CustomPainter {
   final ui.FragmentProgram program;
   final ui.Image frame;
-  final double intensity;
+  final List<double> effectIntensities;
   final double time;
   final int flags;
 
   _GlitchPainter({
     required this.program,
     required this.frame,
-    required this.intensity,
+    required this.effectIntensities,
     required this.time,
     required this.flags,
   });
@@ -59,8 +59,13 @@ class _GlitchPainter extends CustomPainter {
     shader.setFloat(0, size.width);
     shader.setFloat(1, size.height);
     shader.setFloat(2, time);
-    shader.setFloat(3, intensity);
-    shader.setFloat(4, flags.toDouble());
+    shader.setFloat(3, flags.toDouble());
+    for (int i = 0; i < 10; i++) {
+      shader.setFloat(
+        4 + i,
+        i < effectIntensities.length ? effectIntensities[i] : 0.8,
+      );
+    }
     shader.setImageSampler(0, frame);
 
     canvas.drawRect(
