@@ -39,6 +39,10 @@ jobs:
           echo "--- settings.gradle.kts after ---"
           cat android/settings.gradle.kts
 
+      - name: Redirect ffmpeg-kit to maintained fork
+        run: |
+          sed -i '/allprojects {/a\    configurations.all {\n        resolutionStrategy.dependencySubstitution {\n            substitute(module("com.arthenica:ffmpeg-kit-https")).using(module("dev.ffmpegkit-maintained:ffmpeg-kit-https:6.0.3"))\n        }\n    }' android/build.gradle.kts
+
       - name: Show compileSdk after
         run: grep -n "compileSdk" android/app/build.gradle.kts || true
 
