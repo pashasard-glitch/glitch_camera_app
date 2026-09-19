@@ -5,11 +5,14 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
 import '../constants.dart';
+import '../services/audio_recorder_service.dart';
 import '../services/camera_service.dart';
 import '../services/media_service.dart';
 import '../services/orientation_service.dart';
 import '../services/permission_service.dart';
 import '../services/shader_service.dart';
+import '../services/video_encoder_service.dart';
+import '../services/video_merge_service.dart';
 import '../widgets/effect_menu.dart';
 import '../widgets/glitch_view.dart';
 
@@ -24,6 +27,9 @@ class _CameraScreenState extends State<CameraScreen> {
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
+  final _videoEncoder = VideoEncoderService();
+  final _audioRecorder = AudioRecorderService();
+  final _videoMerge = VideoMergeService();
   late final OrientationService _orientation;
 
   ui.Image? _frame;
@@ -35,6 +41,11 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _permissionsAsked = false;
   int _rotationDegrees = 90;
   bool _mirror = false;
+  bool _switchingCamera = false;
+
+  bool _videoFrameBusy = false;
+  int _videoRotation = 90;
+  String? _videoRawPath;
 
   @override
   void initState() {
@@ -73,6 +84,9 @@ class _CameraScreenState extends State<CameraScreen> {
       }
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
+        if (_isRecording) {
+          _appendVideoFrame(img);
+        }
       });
       if (mounted) setState(() => _initialized = true);
     } catch (e) {
@@ -85,11 +99,71 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  Future<void> _switchCamera() async {
+    if (_switchingCamera || _isRecording) return;
+    if (!_camera.hasFrontCamera) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Фронтальная камера не найдена')),
+        );
+      }
+      return;
+    }
+    setState(() => _switchingCamera = true);
+    try {
+      await _camera.stopStream();
+      await _camera.switchCamera();
+      setState(() {
+        _mirror = _camera.currentLens == CameraLensDirection.front;
+      });
+      await _camera.startStream((img) {
+        if (mounted) setState(() => _frame = img);
+        if (_isRecording) {
+          _appendVideoFrame(img);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка переключения камеры: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _switchingCamera = false);
+    }
+  }
+
+  Future<void> _appendVideoFrame(ui.Image img) async {
+    if (_videoFrameBusy || _shader.program == null) return;
+    _videoFrameBusy = true;
+    try {
+      final rendered = await _shader.renderFrame(
+        source: img,
+        intensity: _intensity,
+        time: _time,
+        flags: _flags,
+        rotationDegrees: _videoRotation,
+        mirror: _mirror,
+      );
+      if (rendered != null) {
+        final byteData =
+            await rendered.toByteData(format: ui.ImageByteFormat.rawRgba);
+        if (byteData != null) {
+          await _videoEncoder.appendFrame(byteData.buffer.asUint8List());
+        }
+      }
+    } catch (_) {
+    } finally {
+      _videoFrameBusy = false;
+    }
+  }
+
   @override
   void dispose() {
     _orientation.stop();
     _camera.stopStream();
     _camera.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -136,8 +210,24 @@ class _CameraScreenState extends State<CameraScreen> {
     if (!_isRecording) {
       try {
         await _ensurePermissions();
-        await _camera.stopStream();
-        await _camera.controller!.startVideoRecording();
+        if (_frame == null) return;
+
+        final isLandscape = _rotationDegrees == 90 || _rotationDegrees == 270;
+        final w = isLandscape ? _frame!.height : _frame!.width;
+        final h = isLandscape ? _frame!.width : _frame!.height;
+
+        _videoRawPath = await _media.tempVideoNoAudioPath();
+        final audioPath = await _media.tempAudioPath();
+        _videoRotation = _rotationDegrees;
+
+        await _videoEncoder.start(
+          filepath: _videoRawPath!,
+          width: w,
+          height: h,
+          fps: 24,
+        );
+        await _audioRecorder.start(audioPath);
+
         setState(() => _isRecording = true);
       } catch (e) {
         if (mounted) {
@@ -148,17 +238,27 @@ class _CameraScreenState extends State<CameraScreen> {
       }
     } else {
       try {
-        final file = await _camera.controller!.stopVideoRecording();
-        final path = await _media.videoPath();
-        await file.saveTo(path);
-        await _media.saveVideo(path);
         setState(() => _isRecording = false);
-        await _camera.startStream((img) {
-          if (mounted) setState(() => _frame = img);
-        });
+        await _videoEncoder.stop();
+        final audioPath = await _audioRecorder.stop();
+
+        final finalPath = await _media.videoPath();
+        bool merged = false;
+        if (audioPath != null && _videoRawPath != null) {
+          merged = await _videoMerge.mergeVideoAudio(
+            videoPath: _videoRawPath!,
+            audioPath: audioPath,
+            outputPath: finalPath,
+          );
+        }
+
+        final pathToSave =
+            merged ? finalPath : (_videoRawPath ?? finalPath);
+        await _media.saveVideo(pathToSave);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Видео сохранено в галерею')),
+            const SnackBar(content: Text('Глитч-видео сохранено в галерею')),
           );
         }
       } catch (e) {
@@ -257,6 +357,30 @@ class _CameraScreenState extends State<CameraScreen> {
             ),
             Positioned(
               top: 70,
+              right: 16,
+              child: GestureDetector(
+                onTap: _switchCamera,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(color: Colors.cyanAccent, width: 2),
+                  ),
+                  child: _switchingCamera
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.cyanAccent,
+                          ),
+                        )
+                      : const Icon(Icons.cameraswitch, color: Colors.cyanAccent),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 124,
               right: 16,
               child: GestureDetector(
                 onTap: _showMenu,

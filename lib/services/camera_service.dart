@@ -1,4 +1,4 @@
-import 'dart:async';
+.import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -8,16 +8,41 @@ class CameraService {
   CameraController? controller;
   bool _busy = false;
   int sensorOrientation = 90;
+  List<CameraDescription> _cameras = [];
+  CameraLensDirection currentLens = CameraLensDirection.back;
+
+  bool get hasFrontCamera =>
+      _cameras.any((c) => c.lensDirection == CameraLensDirection.front);
 
   Future<void> init() async {
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
+    _cameras = await availableCameras();
+    if (_cameras.isEmpty) return;
 
-    final camera = cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => cameras.first,
+    final camera = _cameras.firstWhere(
+      (c) => c.lensDirection == currentLens,
+      orElse: () => _cameras.first,
     );
 
+    await _initController(camera);
+  }
+
+  Future<void> switchCamera() async {
+    if (_cameras.isEmpty) return;
+    final nextLens = currentLens == CameraLensDirection.back
+        ? CameraLensDirection.front
+        : CameraLensDirection.back;
+
+    final camera = _cameras.firstWhere(
+      (c) => c.lensDirection == nextLens,
+      orElse: () => _cameras.first,
+    );
+
+    await controller?.dispose();
+    await _initController(camera);
+  }
+
+  Future<void> _initController(CameraDescription camera) async {
+    currentLens = camera.lensDirection;
     sensorOrientation = camera.sensorOrientation;
 
     controller = CameraController(
