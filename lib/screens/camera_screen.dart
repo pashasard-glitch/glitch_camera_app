@@ -40,12 +40,15 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _initialized = false;
   bool _permissionsAsked = false;
   int _rotationDegrees = 90;
+  int _manualRotationOffset = 0;
   bool _mirror = false;
   bool _switchingCamera = false;
 
   bool _videoFrameBusy = false;
   int _videoRotation = 90;
   String? _videoRawPath;
+
+  int get _effectiveRotation => (_rotationDegrees + _manualRotationOffset) % 360;
 
   @override
   void initState() {
@@ -97,6 +100,12 @@ class _CameraScreenState extends State<CameraScreen> {
         );
       }
     }
+  }
+
+  void _rotateManually() {
+    setState(() {
+      _manualRotationOffset = (_manualRotationOffset + 90) % 360;
+    });
   }
 
   Future<void> _switchCamera() async {
@@ -187,7 +196,7 @@ class _CameraScreenState extends State<CameraScreen> {
         intensity: _intensity,
         time: _time,
         flags: _flags,
-        rotationDegrees: _rotationDegrees,
+        rotationDegrees: _effectiveRotation,
         mirror: _mirror,
       );
       if (rendered == null) return;
@@ -212,13 +221,13 @@ class _CameraScreenState extends State<CameraScreen> {
         await _ensurePermissions();
         if (_frame == null) return;
 
-        final isLandscape = _rotationDegrees == 90 || _rotationDegrees == 270;
+        final isLandscape = _effectiveRotation == 90 || _effectiveRotation == 270;
         final w = isLandscape ? _frame!.height : _frame!.width;
         final h = isLandscape ? _frame!.width : _frame!.height;
 
         _videoRawPath = await _media.tempVideoNoAudioPath();
         final audioPath = await _media.tempAudioPath();
-        _videoRotation = _rotationDegrees;
+        _videoRotation = _effectiveRotation;
 
         await _videoEncoder.start(
           filepath: _videoRawPath!,
@@ -303,7 +312,7 @@ class _CameraScreenState extends State<CameraScreen> {
                   : Transform.flip(
                       flipX: _mirror,
                       child: AnimatedRotation(
-                        turns: _rotationDegrees / 360.0,
+                        turns: _effectiveRotation / 360.0,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeInOut,
                         child: GlitchView(
@@ -359,6 +368,31 @@ class _CameraScreenState extends State<CameraScreen> {
               top: 70,
               right: 16,
               child: GestureDetector(
+                onTap: _rotateManually,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    border: Border.all(
+                      color: _manualRotationOffset != 0
+                          ? Colors.orangeAccent
+                          : Colors.cyanAccent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.rotate_90_degrees_cw,
+                    color: _manualRotationOffset != 0
+                        ? Colors.orangeAccent
+                        : Colors.cyanAccent,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 124,
+              right: 16,
+              child: GestureDetector(
                 onTap: _switchCamera,
                 child: Container(
                   padding: const EdgeInsets.all(10),
@@ -380,7 +414,7 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
             Positioned(
-              top: 124,
+              top: 178,
               right: 16,
               child: GestureDetector(
                 onTap: _showMenu,
