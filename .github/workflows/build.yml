@@ -33,15 +33,16 @@ jobs:
         run: |
           sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 36|g' android/app/build.gradle.kts
 
+      - name: Force compileSdk 34+ in all plugin dependencies
+        run: |
+          find "$HOME/.pub-cache" -name "build.gradle" -exec grep -l "compileSdkVersion 33" {} \; 2>/dev/null | xargs -r sed -i 's/compileSdkVersion 33/compileSdkVersion 34/g'
+          find "$HOME/.pub-cache" -name "build.gradle" -exec grep -l "compileSdk 33" {} \; 2>/dev/null | xargs -r sed -i 's/compileSdk 33/compileSdk 34/g'
+
       - name: Add Maven Central as fallback plugin repository
         run: |
           sed -i '/pluginManagement {/a\    repositories {\n        gradlePluginPortal()\n        google()\n        mavenCentral()\n    }' android/settings.gradle.kts || true
           echo "--- settings.gradle.kts after ---"
           cat android/settings.gradle.kts
-
-      - name: Redirect ffmpeg-kit to maintained fork
-        run: |
-          sed -i '/allprojects {/a\    configurations.all {\n        resolutionStrategy.dependencySubstitution {\n            substitute(module("com.arthenica:ffmpeg-kit-https")).using(module("dev.ffmpegkit-maintained:ffmpeg-kit-https:6.0.3"))\n        }\n    }' android/build.gradle.kts
 
       - name: Show compileSdk after
         run: grep -n "compileSdk" android/app/build.gradle.kts || true

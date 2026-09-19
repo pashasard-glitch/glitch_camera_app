@@ -14,7 +14,7 @@ dependencies:
   gal: ^2.3.0
   permission_handler: ^11.3.1
   sensors_plus: ^6.0.1
-  flutter_quick_video_encoder: ^1.2.5
+  flutter_quick_video_encoder: ^1.7.2
   record: ^5.2.1
   ffmpeg_kit_flutter_new_video: ^2.4.3
 
