@@ -19,7 +19,6 @@ class VideoEncoderService {
       audioBitrate: 0,
       audioChannels: 0,
       sampleRate: 0,
-      profileLevel: VideoProfileLevel.any,
       filepath: filepath,
     );
     _isRecording = true;
