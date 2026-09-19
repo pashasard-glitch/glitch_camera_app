@@ -16,6 +16,7 @@ class VideoEncoderService {
       height: height,
       fps: fps,
       videoBitrate: 4 * 1000 * 1000,
+      profileLevel: VideoProfileLevel.avcProfileHigh_avcLevel4,
       audioBitrate: 0,
       audioChannels: 0,
       sampleRate: 0,
