@@ -53,6 +53,18 @@ class CameraService {
     );
 
     await controller!.initialize();
+    try {
+      await controller!.setFocusMode(FocusMode.auto);
+      await controller!.setExposureMode(ExposureMode.auto);
+    } catch (_) {}
+  }
+
+  Future<void> focusAndExposeAt(ui.Offset normalizedPoint) async {
+    if (controller == null) return;
+    try {
+      await controller!.setFocusPoint(normalizedPoint);
+      await controller!.setExposurePoint(normalizedPoint);
+    } catch (_) {}
   }
 
   Future<void> startStream(

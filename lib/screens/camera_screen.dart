@@ -48,6 +48,9 @@ class _CameraScreenState extends State<CameraScreen> {
   int _videoRotation = 90;
   String? _videoRawPath;
 
+  Offset? _focusPoint;
+  Timer? _focusIndicatorTimer;
+
   int get _effectiveRotation => (_rotationDegrees + _manualRotationOffset) % 360;
 
   @override
@@ -100,6 +103,23 @@ class _CameraScreenState extends State<CameraScreen> {
         );
       }
     }
+  }
+
+  void _handleTapToFocus(TapDownDetails details, BoxConstraints constraints) {
+    final size = Size(constraints.maxWidth, constraints.maxHeight);
+    final dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
+    final dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
+
+    _camera.focusAndExposeAt(Offset(dx, dy));
+
+    setState(() {
+      _focusPoint = details.localPosition;
+    });
+
+    _focusIndicatorTimer?.cancel();
+    _focusIndicatorTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _focusPoint = null);
+    });
   }
 
   void _rotateManually() {
@@ -170,6 +190,7 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void dispose() {
     _orientation.stop();
+    _focusIndicatorTimer?.cancel();
     _camera.stopStream();
     _camera.dispose();
     _audioRecorder.dispose();
@@ -309,22 +330,46 @@ class _CameraScreenState extends State<CameraScreen> {
             Positioned.fill(
               child: !_initialized || _frame == null || _shader.program == null
                   ? const Center(child: CircularProgressIndicator())
-                  : Transform.flip(
-                      flipX: _mirror,
-                      child: AnimatedRotation(
-                        turns: _effectiveRotation / 360.0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                        child: GlitchView(
-                          program: _shader.program!,
-                          frame: _frame!,
-                          intensity: _intensity,
-                          time: _time,
-                          flags: _flags,
-                        ),
-                      ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (details) =>
+                              _handleTapToFocus(details, constraints),
+                          child: Transform.flip(
+                            flipX: _mirror,
+                            child: AnimatedRotation(
+                              turns: _effectiveRotation / 360.0,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              child: GlitchView(
+                                program: _shader.program!,
+                                frame: _frame!,
+                                intensity: _intensity,
+                                time: _time,
+                                flags: _flags,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
             ),
+            if (_focusPoint != null)
+              Positioned(
+                left: _focusPoint!.dx - 35,
+                top: _focusPoint!.dy - 35,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.yellow, width: 2),
+                    ),
+                  ),
+                ),
+              ),
             if (_isRecording)
               Positioned(
                 top: 16,
