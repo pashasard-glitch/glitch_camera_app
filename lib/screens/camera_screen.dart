@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/audio_recorder_service.dart';
 import '../services/camera_service.dart';
+import '../services/gallery_service.dart';
 import '../services/media_service.dart';
 import '../services/orientation_service.dart';
 import '../services/permission_service.dart';
@@ -15,6 +16,7 @@ import '../services/video_encoder_service.dart';
 import '../services/video_merge_service.dart';
 import '../widgets/effect_menu.dart';
 import '../widgets/glitch_view.dart';
+import 'gallery_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -27,6 +29,7 @@ class _CameraScreenState extends State<CameraScreen> {
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
+  final _gallery = GalleryService();
   final _videoEncoder = VideoEncoderService();
   final _audioRecorder = AudioRecorderService();
   final _videoMerge = VideoMergeService();
@@ -196,6 +199,16 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  void _openGallery() {
+    if (_isRecording) {
+      _toast('Сначала останови запись');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const GalleryScreen()),
+    );
+  }
+
   Future<void> _switchCamera() async {
     if (_switchingCamera || _isRecording) return;
     if (!_camera.hasFrontCamera) {
@@ -289,6 +302,10 @@ class _CameraScreenState extends State<CameraScreen> {
         mirror: _mirror,
       );
       if (rendered == null) return;
+      // Копия для плеера внутри приложения.
+      try {
+        await _gallery.savePhoto(rendered);
+      } catch (_) {}
       await _media.saveImage(rendered);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -353,6 +370,10 @@ class _CameraScreenState extends State<CameraScreen> {
 
         final pathToSave =
             merged ? finalPath : (_videoRawPath ?? finalPath);
+        // Копия для плеера внутри приложения.
+        try {
+          await _gallery.saveVideo(pathToSave);
+        } catch (_) {}
         await _media.saveVideo(pathToSave);
 
         if (mounted) {
@@ -469,7 +490,7 @@ class _CameraScreenState extends State<CameraScreen> {
                 ),
               ),
             ),
-          // Кнопки справа сверху: автоповорот и зеркало.
+          // Кнопки справа сверху: автоповорот, зеркало, плеер.
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
@@ -499,6 +520,15 @@ class _CameraScreenState extends State<CameraScreen> {
                         size: 30,
                       ),
                       onPressed: _cycleMirror,
+                    ),
+                    IconButton(
+                      tooltip: 'Плеер',
+                      icon: const Icon(
+                        Icons.photo_library,
+                        color: Colors.cyanAccent,
+                        size: 30,
+                      ),
+                      onPressed: _openGallery,
                     ),
                   ],
                 ),
