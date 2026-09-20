@@ -52,8 +52,10 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Offset? _focusPoint;
   Timer? _focusIndicatorTimer;
+  Timer? _tickTimer;
 
-  int get _effectiveRotation => (_rotationDegrees + _manualRotationOffset) % 360;
+  int get _effectiveRotation =>
+      (_rotationDegrees + _manualRotationOffset) % 360;
 
   List<double> _intensityList() {
     return EffectFlags.all
@@ -75,7 +77,7 @@ class _CameraScreenState extends State<CameraScreen> {
     );
     _orientation.start();
     _bootstrap();
-    Timer.periodic(const Duration(milliseconds: 33), (_) {
+    _tickTimer = Timer.periodic(const Duration(milliseconds: 33), (_) {
       if (mounted) setState(() => _time += 0.033);
     });
   }
@@ -197,6 +199,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
+    _tickTimer?.cancel();
     _orientation.stop();
     _focusIndicatorTimer?.cancel();
     _camera.stopStream();
@@ -250,7 +253,8 @@ class _CameraScreenState extends State<CameraScreen> {
         await _ensurePermissions();
         if (_frame == null) return;
 
-        final isLandscape = _effectiveRotation == 90 || _effectiveRotation == 270;
+        final isLandscape =
+            _effectiveRotation == 90 || _effectiveRotation == 270;
         final w = isLandscape ? _frame!.height : _frame!.width;
         final h = isLandscape ? _frame!.width : _frame!.height;
 
@@ -315,229 +319,149 @@ class _CameraScreenState extends State<CameraScreen> {
       backgroundColor: Colors.black.withOpacity(0.95),
       isScrollControlled: true,
       builder: (_) => StatefulBuilder(
-        builder: (context, setSheet) => EffectMenu(
+        builder: (ctx, setSheetState) => EffectMenu(
           flags: _flags,
           intensities: _effectIntensities,
           onToggle: (flag) {
             setState(() => _flags ^= flag);
-            setSheet(() {});
+            setSheetState(() {});
           },
-          onIntensityChanged: (flag, value) {
-            setState(() => _effectIntensities[flag] = value);
-            setSheet(() {});
+          onIntensityChanged: (flag, v) {
+            setState(() => _effectIntensities[flag] = v);
+            setSheetState(() {});
           },
         ),
       ),
     );
-  }
-
-  void _toggleMirror() {
-    setState(() => _mirror = !_mirror);
   }
 
   @override
   Widget build(BuildContext context) {
+    final program = _shader.program;
+    final frame = _frame;
+    final turns = _effectiveRotation ~/ 90;
+
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: !_initialized || _frame == null || _shader.program == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        return GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTapDown: (details) =>
-                              _handleTapToFocus(details, constraints),
-                          child: Transform.flip(
-                            flipX: _mirror,
-                            child: AnimatedRotation(
-                              turns: _effectiveRotation / 360.0,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                              child: GlitchView(
-                                program: _shader.program!,
-                                frame: _frame!,
-                                effectIntensities: _intensityList(),
-                                time: _time,
-                                flags: _flags,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            if (_focusPoint != null)
-              Positioned(
-                left: _focusPoint!.dx - 35,
-                top: _focusPoint!.dy - 35,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.yellow, width: 2),
-                    ),
-                  ),
-                ),
-              ),
-            if (_isRecording)
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  color: Colors.red.withOpacity(0.7),
-                  child: const Text(
-                    'REC',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                ),
-              ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: GestureDetector(
-                onTap: _toggleMirror,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    border: Border.all(
-                      color: _mirror ? Colors.orangeAccent : Colors.cyanAccent,
-                      width: 2,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.flip,
-                    color: _mirror ? Colors.orangeAccent : Colors.cyanAccent,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 70,
-              right: 16,
-              child: GestureDetector(
-                onTap: _rotateManually,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    border: Border.all(
-                      color: _manualRotationOffset != 0
-                          ? Colors.orangeAccent
-                          : Colors.cyanAccent,
-                      width: 2,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.rotate_90_degrees_cw,
-                    color: _manualRotationOffset != 0
-                        ? Colors.orangeAccent
-                        : Colors.cyanAccent,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 124,
-              right: 16,
-              child: GestureDetector(
-                onTap: _switchCamera,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    border: Border.all(color: Colors.cyanAccent, width: 2),
-                  ),
-                  child: _switchingCamera
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.cyanAccent,
-                          ),
-                        )
-                      : const Icon(Icons.cameraswitch, color: Colors.cyanAccent),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 178,
-              right: 16,
-              child: GestureDetector(
-                onTap: _showMenu,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    border: Border.all(color: Colors.cyanAccent, width: 2),
-                  ),
-                  child: const Icon(Icons.tune, color: Colors.cyanAccent),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 40,
-              left: 0,
-              right: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  GestureDetector(
-                    onTap: _takePhoto,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border:
-                            Border.all(color: Colors.cyanAccent, width: 3),
-                        color: Colors.black54,
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (frame != null && program != null)
+            LayoutBuilder(
+              builder: (context, constraints) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (d) => _handleTapToFocus(d, constraints),
+                child: ClipRect(
+                  child: Transform.flip(
+                    flipX: _mirror,
+                    child: RotatedBox(
+                      quarterTurns: turns,
+                      child: GlitchView(
+                        program: program,
+                        frame: frame,
+                        effectIntensities: _intensityList(),
+                        time: _time,
+                        flags: _flags,
                       ),
-                      child: const Icon(Icons.camera_alt,
-                          color: Colors.cyanAccent),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: _toggleVideo,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _isRecording
-                              ? Colors.redAccent
-                              : Colors.cyanAccent,
-                          width: 3,
+                ),
+              ),
+            )
+          else
+            const Center(
+              child: CircularProgressIndicator(color: Colors.cyanAccent),
+            ),
+          if (_focusPoint != null)
+            Positioned(
+              left: _focusPoint!.dx - 30,
+              top: _focusPoint!.dy - 30,
+              child: IgnorePointer(
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.cyanAccent, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          if (_isRecording)
+            const SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.fiber_manual_record,
+                          color: Colors.red, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'REC',
+                        style: TextStyle(
+                          color: Colors.red,
+                          letterSpacing: 3,
                         ),
-                        color: Colors.black54,
                       ),
-                      child: Icon(
-                        _isRecording ? Icons.stop : Icons.videocam,
-                        color: _isRecording
-                            ? Colors.redAccent
-                            : Colors.cyanAccent,
-                      ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ],
-        ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.tune,
+                          color: Colors.cyanAccent, size: 30),
+                      onPressed: _showMenu,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.screen_rotation,
+                          color: Colors.cyanAccent, size: 30),
+                      onPressed: _rotateManually,
+                    ),
+                    GestureDetector(
+                      onTap: _takePhoto,
+                      child: Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border: Border.all(
+                              color: Colors.cyanAccent, width: 3),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isRecording ? Icons.stop_circle : Icons.videocam,
+                        color: _isRecording ? Colors.red : Colors.cyanAccent,
+                        size: 34,
+                      ),
+                      onPressed: _toggleVideo,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.cameraswitch,
+                          color: Colors.cyanAccent, size: 30),
+                      onPressed: _switchCamera,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
-}}
+}
