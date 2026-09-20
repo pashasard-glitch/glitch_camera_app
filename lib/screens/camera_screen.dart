@@ -43,8 +43,13 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _permissionsAsked = false;
   int _rotationDegrees = 90;
   int _manualRotationOffset = 0;
-  bool _mirror = false;
   bool _switchingCamera = false;
+
+  // Автоповорот: следим за положением телефона и держим картинку ровно.
+  bool _autoOrientation = true;
+
+  // Режим зеркала: 0 = авто (по камере), 1 = всегда вкл, 2 = всегда выкл.
+  int _mirrorMode = 0;
 
   bool _videoFrameBusy = false;
   int _videoRotation = 90;
@@ -53,6 +58,17 @@ class _CameraScreenState extends State<CameraScreen> {
   Offset? _focusPoint;
   Timer? _focusIndicatorTimer;
   Timer? _tickTimer;
+
+  bool get _mirror {
+    switch (_mirrorMode) {
+      case 1:
+        return true;
+      case 2:
+        return false;
+      default:
+        return _camera.currentLens == CameraLensDirection.front;
+    }
+  }
 
   int get _effectiveRotation =>
       (_rotationDegrees + _manualRotationOffset) % 360;
@@ -68,7 +84,7 @@ class _CameraScreenState extends State<CameraScreen> {
     super.initState();
     _orientation = OrientationService(
       onChanged: (rotation) {
-        if (mounted) {
+        if (mounted && _autoOrientation) {
           setState(() {
             _rotationDegrees = rotation;
           });
@@ -115,6 +131,18 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  void _toast(String text) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        duration: const Duration(milliseconds: 1200),
+      ),
+    );
+  }
+
   void _handleTapToFocus(TapDownDetails details, BoxConstraints constraints) {
     final size = Size(constraints.maxWidth, constraints.maxHeight);
     final dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
@@ -134,8 +162,38 @@ class _CameraScreenState extends State<CameraScreen> {
 
   void _rotateManually() {
     setState(() {
+      // Ручной поворот отключает автоповорот и фиксирует текущее положение.
+      _autoOrientation = false;
       _manualRotationOffset = (_manualRotationOffset + 90) % 360;
     });
+  }
+
+  void _toggleAutoOrientation() {
+    setState(() {
+      _autoOrientation = !_autoOrientation;
+      if (_autoOrientation) {
+        // Сбрасываем ручной поворот и сразу берём положение с датчика.
+        _manualRotationOffset = 0;
+        _rotationDegrees = _orientation.rotationDegrees;
+      }
+    });
+    _toast(_autoOrientation ? 'Автоповорот: вкл' : 'Автоповорот: выкл');
+  }
+
+  void _cycleMirror() {
+    setState(() {
+      _mirrorMode = (_mirrorMode + 1) % 3;
+    });
+    switch (_mirrorMode) {
+      case 0:
+        _toast('Зеркало: авто (фронталка)');
+        break;
+      case 1:
+        _toast('Зеркало: вкл');
+        break;
+      default:
+        _toast('Зеркало: выкл');
+    }
   }
 
   Future<void> _switchCamera() async {
@@ -152,9 +210,8 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       await _camera.stopStream();
       await _camera.switchCamera();
-      setState(() {
-        _mirror = _camera.currentLens == CameraLensDirection.front;
-      });
+      // Зеркало в авто-режиме обновится само: оно считается от текущей камеры.
+      if (mounted) setState(() {});
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
         if (_isRecording) {
@@ -340,6 +397,7 @@ class _CameraScreenState extends State<CameraScreen> {
     final program = _shader.program;
     final frame = _frame;
     final turns = _effectiveRotation ~/ 90;
+    final mirror = _mirror;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -353,7 +411,7 @@ class _CameraScreenState extends State<CameraScreen> {
                 onTapDown: (d) => _handleTapToFocus(d, constraints),
                 child: ClipRect(
                   child: Transform.flip(
-                    flipX: _mirror,
+                    flipX: mirror,
                     child: RotatedBox(
                       quarterTurns: turns,
                       child: GlitchView(
@@ -411,6 +469,42 @@ class _CameraScreenState extends State<CameraScreen> {
                 ),
               ),
             ),
+          // Кнопки справа сверху: автоповорот и зеркало.
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, right: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Автоповорот',
+                      icon: Icon(
+                        Icons.screen_lock_rotation,
+                        color: _autoOrientation
+                            ? Colors.cyanAccent
+                            : Colors.grey,
+                        size: 30,
+                      ),
+                      onPressed: _toggleAutoOrientation,
+                    ),
+                    IconButton(
+                      tooltip: 'Зеркало',
+                      icon: Icon(
+                        Icons.flip,
+                        color: _mirrorMode == 2
+                            ? Colors.grey
+                            : Colors.cyanAccent,
+                        size: 30,
+                      ),
+                      onPressed: _cycleMirror,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
