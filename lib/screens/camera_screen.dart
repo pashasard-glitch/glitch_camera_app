@@ -18,6 +18,7 @@ import '../services/video_merge_service.dart';
 import '../widgets/effect_menu.dart';
 import '../widgets/glitch_view.dart';
 import '../widgets/settings_menu.dart';
+import '../widgets/tracking_overlay.dart';
 import 'gallery_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -53,6 +54,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _initialized = false;
   bool _permissionsAsked = false;
   bool _switchingCamera = false;
+  bool _trackingEnabled = false;
 
   // Положение телефона: 0 / 90 / 180 / 270 против часовой от вертикали.
   int _deviceRotation = 0;
@@ -202,6 +204,11 @@ class _CameraScreenState extends State<CameraScreen> {
       default:
         _toast('Зеркало: выкл');
     }
+  }
+
+  void _toggleTracking() {
+    setState(() => _trackingEnabled = !_trackingEnabled);
+    _toast(_trackingEnabled ? 'Трекинг: вкл' : 'Трекинг: выкл');
   }
 
   void _openGallery() {
@@ -484,168 +491,3 @@ class _CameraScreenState extends State<CameraScreen> {
           if (frame != null && program != null)
             LayoutBuilder(
               builder: (context, constraints) => GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapDown: (d) => _handleTapToFocus(d, constraints),
-                child: ClipRect(
-                  child: Transform.flip(
-                    flipX: mirror,
-                    child: RotatedBox(
-                      quarterTurns: previewTurns,
-                      child: GlitchView(
-                        program: program,
-                        frame: frame,
-                        effectIntensities: _intensityList(),
-                        time: _time,
-                        flags: _flags,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          else
-            const Center(
-              child: CircularProgressIndicator(color: Colors.cyanAccent),
-            ),
-          if (_focusPoint != null)
-            Positioned(
-              left: _focusPoint!.dx - 30,
-              top: _focusPoint!.dy - 30,
-              child: IgnorePointer(
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.cyanAccent, width: 2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          if (_isRecording)
-            const SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.fiber_manual_record,
-                          color: Colors.red, size: 16),
-                      SizedBox(width: 6),
-                      Text(
-                        'REC',
-                        style: TextStyle(
-                          color: Colors.red,
-                          letterSpacing: 3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          // Кнопки справа сверху: автоповорот, зеркало, плеер, настройки.
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8, right: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: 'Автоповорот',
-                      icon: Icon(
-                        Icons.screen_lock_rotation,
-                        color: _autoOrientation
-                            ? Colors.cyanAccent
-                            : Colors.grey,
-                        size: 30,
-                      ),
-                      onPressed: _toggleAutoOrientation,
-                    ),
-                    IconButton(
-                      tooltip: 'Зеркало',
-                      icon: Icon(
-                        Icons.flip,
-                        color: _mirrorMode == 2
-                            ? Colors.grey
-                            : Colors.cyanAccent,
-                        size: 30,
-                      ),
-                      onPressed: _cycleMirror,
-                    ),
-                    IconButton(
-                      tooltip: 'Плеер',
-                      icon: const Icon(
-                        Icons.photo_library,
-                        color: Colors.cyanAccent,
-                        size: 30,
-                      ),
-                      onPressed: _openGallery,
-                    ),
-                    IconButton(
-                      tooltip: 'Настройки',
-                      icon: const Icon(
-                        Icons.settings,
-                        color: Colors.cyanAccent,
-                        size: 30,
-                      ),
-                      onPressed: _showSettings,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.tune,
-                          color: Colors.cyanAccent, size: 30),
-                      onPressed: _showMenu,
-                    ),
-                    GestureDetector(
-                      onTap: _takePhoto,
-                      child: Container(
-                        width: 68,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          border: Border.all(
-                              color: Colors.cyanAccent, width: 3),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        _isRecording ? Icons.stop_circle : Icons.videocam,
-                        color: _isRecording ? Colors.red : Colors.cyanAccent,
-                        size: 34,
-                      ),
-                      onPressed: _toggleVideo,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.cameraswitch,
-                          color: Colors.cyanAccent, size: 30),
-                      onPressed: _switchCamera,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
