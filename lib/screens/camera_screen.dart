@@ -394,7 +394,9 @@ class _CameraScreenState extends State<CameraScreen> {
   void _showMenu() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.black.withOpacity(0.95),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.transparent,
+      elevation: 0,
       isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheetState) => EffectMenu(
