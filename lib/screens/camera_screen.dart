@@ -17,6 +17,7 @@ import '../services/video_encoder_service.dart';
 import '../services/video_merge_service.dart';
 import '../widgets/effect_menu.dart';
 import '../widgets/glitch_view.dart';
+import '../widgets/settings_menu.dart';
 import 'gallery_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -27,6 +28,12 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen> {
+  // Кадров в секунду в готовом файле. Если видео всё ещё идёт быстрее
+  // реальности, кодировщик не успевает: попробуй уменьшить до 15.
+  static const int _videoFps = 24;
+  // Сколько раз максимум можно повторить кадр за один раз (после лагов).
+  static const int _maxRepeat = 96;
+
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
@@ -56,6 +63,13 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // Режим зеркала: 0 = авто (по камере), 1 = всегда вкл, 2 = всегда выкл.
   int _mirrorMode = 0;
+
+  // Скорость видео из настроек и скорость текущей записи.
+  double _videoSpeed = 1.0;
+  double _recSpeed = 1.0;
+  bool _recWithAudio = true;
+  final Stopwatch _recClock = Stopwatch();
+  int _emittedFrames = 0;
 
   bool _videoFrameBusy = false;
   int _videoRotation = 90;
@@ -234,6 +248,15 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> _appendVideoFrame(ui.Image img) async {
     if (_videoFrameBusy || _shader.program == null) return;
+
+    // Сколько кадров должно быть в файле к этому моменту записи.
+    // Кадров не хватает: повторяем текущий. Кадров лишка: пропускаем.
+    final seconds = _recClock.elapsedMicroseconds / 1000000.0;
+    final target = (seconds * _videoFps / _recSpeed).floor() + 1;
+    var repeat = target - _emittedFrames;
+    if (repeat <= 0) return;
+    if (repeat > _maxRepeat) repeat = _maxRepeat;
+
     _videoFrameBusy = true;
     try {
       final rendered = await _shader.renderFrame(
@@ -248,7 +271,12 @@ class _CameraScreenState extends State<CameraScreen> {
         final byteData =
             await rendered.toByteData(format: ui.ImageByteFormat.rawRgba);
         if (byteData != null) {
-          await _videoEncoder.appendFrame(byteData.buffer.asUint8List());
+          final bytes = byteData.buffer.asUint8List();
+          for (int i = 0; i < repeat; i++) {
+            if (!_isRecording) break;
+            await _videoEncoder.appendFrame(bytes);
+            _emittedFrames++;
+          }
         }
       }
     } catch (_) {
@@ -322,17 +350,26 @@ class _CameraScreenState extends State<CameraScreen> {
         final h = isLandscape ? _frame!.width : _frame!.height;
 
         _videoRawPath = await _media.tempVideoNoAudioPath();
-        final audioPath = await _media.tempAudioPath();
         _videoRotation = rotation;
+        _recSpeed = _videoSpeed;
+        // Звук совпадает с видео только на обычной скорости.
+        _recWithAudio = (_recSpeed - 1.0).abs() < 0.001;
 
         await _videoEncoder.start(
           filepath: _videoRawPath!,
           width: w,
           height: h,
-          fps: 24,
+          fps: _videoFps,
         );
-        await _audioRecorder.start(audioPath);
+        if (_recWithAudio) {
+          final audioPath = await _media.tempAudioPath();
+          await _audioRecorder.start(audioPath);
+        }
 
+        _emittedFrames = 0;
+        _recClock
+          ..reset()
+          ..start();
         setState(() => _isRecording = true);
       } catch (e) {
         if (mounted) {
@@ -344,8 +381,15 @@ class _CameraScreenState extends State<CameraScreen> {
     } else {
       try {
         setState(() => _isRecording = false);
+        _recClock.stop();
+
+        // Ждём, пока допишется последний кадр.
+        for (int i = 0; i < 50 && _videoFrameBusy; i++) {
+          await Future.delayed(const Duration(milliseconds: 20));
+        }
+
         await _videoEncoder.stop();
-        final audioPath = await _audioRecorder.stop();
+        final audioPath = _recWithAudio ? await _audioRecorder.stop() : null;
 
         final finalPath = await _media.videoPath();
         bool merged = false;
@@ -366,7 +410,13 @@ class _CameraScreenState extends State<CameraScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Глитч-видео сохранено в галерею')),
+            SnackBar(
+              content: Text(
+                _recWithAudio
+                    ? 'Глитч-видео сохранено в галерею'
+                    : 'Глитч-видео сохранено в галерею (без звука)',
+              ),
+            ),
           );
         }
       } catch (e) {
@@ -398,6 +448,21 @@ class _CameraScreenState extends State<CameraScreen> {
             setState(() => _effectIntensities[flag] = v);
             setSheetState(() {});
           },
+        ),
+      ),
+    );
+  }
+
+  void _showSettings() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black.withOpacity(0.95),
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: SettingsMenu(
+          videoSpeed: _videoSpeed,
+          onVideoSpeedChanged: (v) => _videoSpeed = v,
         ),
       ),
     );
@@ -481,7 +546,7 @@ class _CameraScreenState extends State<CameraScreen> {
                 ),
               ),
             ),
-          // Кнопки справа сверху: автоповорот, зеркало, плеер.
+          // Кнопки справа сверху: автоповорот, зеркало, плеер, настройки.
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
@@ -520,6 +585,15 @@ class _CameraScreenState extends State<CameraScreen> {
                         size: 30,
                       ),
                       onPressed: _openGallery,
+                    ),
+                    IconButton(
+                      tooltip: 'Настройки',
+                      icon: const Icon(
+                        Icons.settings,
+                        color: Colors.cyanAccent,
+                        size: 30,
+                      ),
+                      onPressed: _showSettings,
                     ),
                   ],
                 ),
