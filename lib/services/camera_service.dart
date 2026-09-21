@@ -3,6 +3,58 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show compute;
+
+class _YuvFrame {
+  final int width;
+  final int height;
+  final Uint8List y;
+  final Uint8List u;
+  final Uint8List v;
+  final int yRowStride;
+  final int uvRowStride;
+  final int uvPixelStride;
+
+  _YuvFrame({
+    required this.width,
+    required this.height,
+    required this.y,
+    required this.u,
+    required this.v,
+    required this.yRowStride,
+    required this.uvRowStride,
+    required this.uvPixelStride,
+  });
+}
+
+/// Работает в отдельном изоляте, целочисленная математика.
+Uint8List _yuvToRgba(_YuvFrame f) {
+  final w = f.width;
+  final h = f.height;
+  final out = Uint8List(w * h * 4);
+  int o = 0;
+
+  for (int yy = 0; yy < h; yy++) {
+    final yRow = yy * f.yRowStride;
+    final uvRow = (yy >> 1) * f.uvRowStride;
+    for (int xx = 0; xx < w; xx++) {
+      final yv = f.y[yRow + xx];
+      final uvIndex = uvRow + (xx >> 1) * f.uvPixelStride;
+      final u = f.u[uvIndex] - 128;
+      final v = f.v[uvIndex] - 128;
+
+      int r = yv + ((91881 * v) >> 16);
+      int g = yv - ((22554 * u + 46802 * v) >> 16);
+      int b = yv + ((116130 * u) >> 16);
+
+      out[o++] = r < 0 ? 0 : (r > 255 ? 255 : r);
+      out[o++] = g < 0 ? 0 : (g > 255 ? 255 : g);
+      out[o++] = b < 0 ? 0 : (b > 255 ? 255 : b);
+      out[o++] = 255;
+    }
+  }
+  return out;
+}
 
 class CameraService {
   CameraController? controller;
@@ -13,6 +65,16 @@ class CameraService {
 
   bool get hasFrontCamera =>
       _cameras.any((c) => c.lensDirection == CameraLensDirection.front);
+
+  /// Поворот по часовой стрелке (в градусах), который нужно применить
+  /// к кадру с датчика, чтобы фото или видео были ровными, когда телефон
+  /// повёрнут на [deviceRotation] против часовой от вертикали.
+  int imageRotation(int deviceRotation) {
+    if (currentLens == CameraLensDirection.front) {
+      return (sensorOrientation + deviceRotation) % 360;
+    }
+    return (sensorOrientation - deviceRotation + 360) % 360;
+  }
 
   Future<void> init() async {
     _cameras = await availableCameras();
@@ -48,7 +110,8 @@ class CameraService {
     controller = CameraController(
       camera,
       ResolutionPreset.medium,
-      enableAudio: true,
+      // Звук пишет отдельный рекордер.
+      enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
 
@@ -77,8 +140,10 @@ class CameraService {
       try {
         final uiImage = await _convertYUV(image);
         onFrame(uiImage);
-      } catch (_) {}
-      _busy = false;
+      } catch (_) {
+      } finally {
+        _busy = false;
+      }
     });
   }
 
@@ -101,36 +166,23 @@ class CameraService {
     final planeU = image.planes[1];
     final planeV = image.planes[2];
 
-    final uvRowStride = planeU.bytesPerRow;
-    final uvPixelStride = planeU.bytesPerPixel ?? 1;
-
-    final rgb = Uint8List(width * height * 4);
-
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        final yIndex = y * planeY.bytesPerRow + x;
-        final uvIndex =
-            (y ~/ 2) * uvRowStride + (x ~/ 2) * uvPixelStride;
-
-        final Y = planeY.bytes[yIndex];
-        final U = planeU.bytes[uvIndex] - 128;
-        final V = planeV.bytes[uvIndex] - 128;
-
-        final r = (Y + 1.402 * V).round().clamp(0, 255);
-        final g = (Y - 0.344 * U - 0.714 * V).round().clamp(0, 255);
-        final b = (Y + 1.772 * U).round().clamp(0, 255);
-
-        final idx = (y * width + x) * 4;
-        rgb[idx] = r;
-        rgb[idx + 1] = g;
-        rgb[idx + 2] = b;
-        rgb[idx + 3] = 255;
-      }
-    }
+    final rgba = await compute(
+      _yuvToRgba,
+      _YuvFrame(
+        width: width,
+        height: height,
+        y: planeY.bytes,
+        u: planeU.bytes,
+        v: planeV.bytes,
+        yRowStride: planeY.bytesPerRow,
+        uvRowStride: planeU.bytesPerRow,
+        uvPixelStride: planeU.bytesPerPixel ?? 1,
+      ),
+    );
 
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rgb,
+      rgba,
       width,
       height,
       ui.PixelFormat.rgba8888,

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../constants.dart';
 import '../services/audio_recorder_service.dart';
@@ -44,11 +45,13 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isRecording = false;
   bool _initialized = false;
   bool _permissionsAsked = false;
-  int _rotationDegrees = 90;
-  int _manualRotationOffset = 0;
   bool _switchingCamera = false;
 
-  // Автоповорот: следим за положением телефона и держим картинку ровно.
+  // Положение телефона: 0 / 90 / 180 / 270 против часовой от вертикали.
+  int _deviceRotation = 0;
+
+  // true: фото и видео ровные по положению телефона.
+  // false: фото и видео всегда вертикальные.
   bool _autoOrientation = true;
 
   // Режим зеркала: 0 = авто (по камере), 1 = всегда вкл, 2 = всегда выкл.
@@ -73,8 +76,9 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  int get _effectiveRotation =>
-      (_rotationDegrees + _manualRotationOffset) % 360;
+  // Поворот для сохраняемых фото и видео.
+  int get _fileRotation =>
+      _camera.imageRotation(_autoOrientation ? _deviceRotation : 0);
 
   List<double> _intensityList() {
     return EffectFlags.all
@@ -85,13 +89,13 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
+    // Интерфейс всегда вертикальный: превью работает как видоискатель,
+    // а положение телефона учитывается только для файлов.
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
     _orientation = OrientationService(
       onChanged: (rotation) {
-        if (mounted && _autoOrientation) {
-          setState(() {
-            _rotationDegrees = rotation;
-          });
-        }
+        if (mounted) setState(() => _deviceRotation = rotation);
       },
     );
     _orientation.start();
@@ -113,9 +117,7 @@ class _CameraScreenState extends State<CameraScreen> {
       await _shader.load();
       await _camera.init();
       if (mounted) {
-        setState(() {
-          _rotationDegrees = _orientation.rotationDegrees;
-        });
+        setState(() => _deviceRotation = _orientation.deviceRotation);
       }
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
@@ -141,7 +143,7 @@ class _CameraScreenState extends State<CameraScreen> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(text),
-        duration: const Duration(milliseconds: 1200),
+        duration: const Duration(milliseconds: 1400),
       ),
     );
   }
@@ -163,24 +165,13 @@ class _CameraScreenState extends State<CameraScreen> {
     });
   }
 
-  void _rotateManually() {
-    setState(() {
-      // Ручной поворот отключает автоповорот и фиксирует текущее положение.
-      _autoOrientation = false;
-      _manualRotationOffset = (_manualRotationOffset + 90) % 360;
-    });
-  }
-
   void _toggleAutoOrientation() {
-    setState(() {
-      _autoOrientation = !_autoOrientation;
-      if (_autoOrientation) {
-        // Сбрасываем ручной поворот и сразу берём положение с датчика.
-        _manualRotationOffset = 0;
-        _rotationDegrees = _orientation.rotationDegrees;
-      }
-    });
-    _toast(_autoOrientation ? 'Автоповорот: вкл' : 'Автоповорот: выкл');
+    setState(() => _autoOrientation = !_autoOrientation);
+    _toast(
+      _autoOrientation
+          ? 'Автоповорот: вкл (фото и видео по положению телефона)'
+          : 'Автоповорот: выкл (всегда вертикально)',
+    );
   }
 
   void _cycleMirror() {
@@ -223,7 +214,6 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       await _camera.stopStream();
       await _camera.switchCamera();
-      // Зеркало в авто-режиме обновится само: оно считается от текущей камеры.
       if (mounted) setState(() {});
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
@@ -298,11 +288,10 @@ class _CameraScreenState extends State<CameraScreen> {
         effectIntensities: _intensityList(),
         time: _time,
         flags: _flags,
-        rotationDegrees: _effectiveRotation,
+        rotationDegrees: _fileRotation,
         mirror: _mirror,
       );
       if (rendered == null) return;
-      // Копия для плеера внутри приложения.
       try {
         await _gallery.savePhoto(rendered);
       } catch (_) {}
@@ -327,14 +316,14 @@ class _CameraScreenState extends State<CameraScreen> {
         await _ensurePermissions();
         if (_frame == null) return;
 
-        final isLandscape =
-            _effectiveRotation == 90 || _effectiveRotation == 270;
+        final rotation = _fileRotation;
+        final isLandscape = rotation == 90 || rotation == 270;
         final w = isLandscape ? _frame!.height : _frame!.width;
         final h = isLandscape ? _frame!.width : _frame!.height;
 
         _videoRawPath = await _media.tempVideoNoAudioPath();
         final audioPath = await _media.tempAudioPath();
-        _videoRotation = _effectiveRotation;
+        _videoRotation = rotation;
 
         await _videoEncoder.start(
           filepath: _videoRawPath!,
@@ -370,7 +359,6 @@ class _CameraScreenState extends State<CameraScreen> {
 
         final pathToSave =
             merged ? finalPath : (_videoRawPath ?? finalPath);
-        // Копия для плеера внутри приложения.
         try {
           await _gallery.saveVideo(pathToSave);
         } catch (_) {}
@@ -419,7 +407,8 @@ class _CameraScreenState extends State<CameraScreen> {
   Widget build(BuildContext context) {
     final program = _shader.program;
     final frame = _frame;
-    final turns = _effectiveRotation ~/ 90;
+    // Превью: поворот кадра определяется только датчиком камеры.
+    final previewTurns = (_camera.sensorOrientation ~/ 90) % 4;
     final mirror = _mirror;
 
     return Scaffold(
@@ -436,7 +425,7 @@ class _CameraScreenState extends State<CameraScreen> {
                   child: Transform.flip(
                     flipX: mirror,
                     child: RotatedBox(
-                      quarterTurns: turns,
+                      quarterTurns: previewTurns,
                       child: GlitchView(
                         program: program,
                         frame: frame,
@@ -549,11 +538,6 @@ class _CameraScreenState extends State<CameraScreen> {
                       icon: const Icon(Icons.tune,
                           color: Colors.cyanAccent, size: 30),
                       onPressed: _showMenu,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.screen_rotation,
-                          color: Colors.cyanAccent, size: 30),
-                      onPressed: _rotateManually,
                     ),
                     GestureDetector(
                       onTap: _takePhoto,
