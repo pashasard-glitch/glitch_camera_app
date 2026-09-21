@@ -13,6 +13,7 @@ import '../services/media_service.dart';
 import '../services/orientation_service.dart';
 import '../services/permission_service.dart';
 import '../services/shader_service.dart';
+import '../services/tracking_renderer.dart';
 import '../services/video_encoder_service.dart';
 import '../services/video_merge_service.dart';
 import '../widgets/effect_menu.dart';
@@ -39,6 +40,7 @@ class _CameraScreenState extends State<CameraScreen> {
   final _shader = ShaderService();
   final _media = MediaService();
   final _gallery = GalleryService();
+  final _tracking = TrackingRenderer();
   final _videoEncoder = VideoEncoderService();
   final _audioRecorder = AudioRecorderService();
   final _videoMerge = VideoMergeService();
@@ -253,6 +255,19 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  /// Если трекинг включён, впечатывает рамки прямо в картинку.
+  Future<ui.Image> _bakeTracking(ui.Image source) async {
+    if (!_trackingEnabled) return source;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final w = source.width.toDouble();
+    final h = source.height.toDouble();
+    canvas.drawImage(source, Offset.zero, Paint());
+    _tracking.paint(canvas, Size(w, h), _time);
+    final picture = recorder.endRecording();
+    return picture.toImage(source.width, source.height);
+  }
+
   Future<void> _appendVideoFrame(ui.Image img) async {
     if (_videoFrameBusy || _shader.program == null) return;
 
@@ -275,8 +290,9 @@ class _CameraScreenState extends State<CameraScreen> {
         mirror: _mirror,
       );
       if (rendered != null) {
+        final baked = await _bakeTracking(rendered);
         final byteData =
-            await rendered.toByteData(format: ui.ImageByteFormat.rawRgba);
+            await baked.toByteData(format: ui.ImageByteFormat.rawRgba);
         if (byteData != null) {
           final bytes = byteData.buffer.asUint8List();
           for (int i = 0; i < repeat; i++) {
@@ -327,10 +343,11 @@ class _CameraScreenState extends State<CameraScreen> {
         mirror: _mirror,
       );
       if (rendered == null) return;
+      final finalImage = await _bakeTracking(rendered);
       try {
-        await _gallery.savePhoto(rendered);
+        await _gallery.savePhoto(finalImage);
       } catch (_) {}
-      await _media.saveImage(rendered);
+      await _media.saveImage(finalImage);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Глитч-фото сохранено в галерею')),
@@ -515,8 +532,10 @@ class _CameraScreenState extends State<CameraScreen> {
               child: CircularProgressIndicator(color: Colors.cyanAccent),
             ),
           if (_trackingEnabled)
-            const Positioned.fill(
-              child: IgnorePointer(child: TrackingOverlay()),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: TrackingOverlay(renderer: _tracking, time: _time),
+              ),
             ),
           if (_focusPoint != null)
             Positioned(
