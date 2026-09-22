@@ -9,12 +9,14 @@ class TrackingBox {
   final String tag;
   final String label;
   final double glow;
+  final bool dense;
 
   TrackingBox({
     required this.rect,
     required this.tag,
     required this.label,
     required this.glow,
+    required this.dense,
   });
 }
 
@@ -53,6 +55,7 @@ class TrackingRenderer {
     final minSide = math.min(size.width, size.height);
     final boxes = <TrackingBox>[];
     final alwaysOn = mode != TrackingMode.random;
+    int denseCounter = 0;
 
     for (int i = 0; i < configs.length; i++) {
       final c = configs[i];
@@ -73,9 +76,6 @@ class TrackingRenderer {
         cx = (col + 0.5) / cols * size.width;
         cy = (row + 0.5) / rows * size.height;
       } else if (mode == TrackingMode.focus) {
-        // Имитация фокуса на объекте в центре кадра. Настоящего
-        // распознавания человека здесь нет — это декоративная сборка
-        // рамок к центру.
         final angle = i * 2.399963;
         final radius = 0.06 * minSide * math.sqrt(i + 1);
         cx = size.width / 2 + math.cos(angle) * radius;
@@ -92,11 +92,20 @@ class TrackingRenderer {
 
       final boxSize = c.sizeFrac * minSide;
       final blink = (math.sin(time * 6 + seed % 11) + 1) / 2;
-
       final segment = (time / 0.06).floor();
-      final tag = c.randomTag
-          ? _fastTag(seed, segment)
-          : 'OBJ_${10 + (_hash(seed, 0) * 89).floor()}';
+      final isDense = c.label.isEmpty;
+
+      String tag;
+      if (isDense) {
+        tag = c.randomTag
+            ? _fastTag(seed, segment, length: 3)
+            : denseCounter.toString();
+        denseCounter++;
+      } else {
+        tag = c.randomTag
+            ? _fastTag(seed, segment)
+            : 'OBJ_${10 + (_hash(seed, 0) * 89).floor()}';
+      }
 
       boxes.add(TrackingBox(
         rect: Rect.fromCenter(
@@ -107,6 +116,7 @@ class TrackingRenderer {
         tag: tag,
         label: c.label,
         glow: (0.45 + blink * 0.55).clamp(0.0, 1.0),
+        dense: isDense,
       ));
     }
     return boxes;
@@ -127,27 +137,60 @@ class TrackingRenderer {
       mode: mode,
       visibleDuration: visibleDuration,
     );
+
+    // Тонкие линии между соседними безымянными трекерами — как в примере.
+    final denseBoxes = boxes.where((b) => b.dense).toList();
+    if (denseBoxes.length > 1) {
+      final linePaint = Paint()
+        ..color = Colors.white.withOpacity(0.45)
+        ..strokeWidth = 1;
+      for (int i = 0; i < denseBoxes.length - 1; i++) {
+        canvas.drawLine(
+          denseBoxes[i].rect.center,
+          denseBoxes[i + 1].rect.center,
+          linePaint,
+        );
+      }
+    }
+
     final boxPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     for (final b in boxes) {
       boxPaint.color = Colors.cyanAccent.withOpacity(b.glow);
-      _drawCorners(canvas, b.rect, boxPaint);
 
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '${b.label}\n${b.tag}',
-          style: TextStyle(
-            color: Colors.cyanAccent.withOpacity(b.glow),
-            fontSize: 11,
-            letterSpacing: 1,
-            fontFamily: 'monospace',
+      if (b.dense) {
+        // Простой прямоугольник с номером — как в примере.
+        canvas.drawRect(b.rect, boxPaint);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: b.tag,
+            style: TextStyle(
+              color: Colors.white.withOpacity(b.glow),
+              fontSize: 12,
+              fontFamily: 'monospace',
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: 160);
-      tp.paint(canvas, Offset(b.rect.left, b.rect.top - tp.height - 4));
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, b.rect.topLeft + const Offset(4, 2));
+      } else {
+        _drawCorners(canvas, b.rect, boxPaint);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: '${b.label}\n${b.tag}',
+            style: TextStyle(
+              color: Colors.cyanAccent.withOpacity(b.glow),
+              fontSize: 11,
+              letterSpacing: 1,
+              fontFamily: 'monospace',
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: 160);
+        tp.paint(canvas, Offset(b.rect.left, b.rect.top - tp.height - 4));
+      }
     }
   }
 
