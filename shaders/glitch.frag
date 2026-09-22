@@ -4,7 +4,7 @@
 uniform vec2 uSize;
 uniform float uTime;
 uniform float uEffectFlags;
-uniform float uInt[10];
+uniform float uInt[11];
 uniform sampler2D uTexture;
 
 out vec4 fragColor;
@@ -114,6 +114,39 @@ void main() {
         color *= mix(1.0, vignette, 0.5 * i);
 
         color = mix(color, color * 0.85 + 0.05, 0.4 * i);
+    }
+
+    if (flagOn(1024.0)) {
+        float i = uInt[10];
+
+        // Крупные блоки "смазываются" в случайном направлении, как
+        // при поломанном P-кадре в видео.
+        float blockSize = mix(40.0, 10.0, i);
+        vec2 block = floor(uv * uSize / blockSize);
+        float rnd = rand(block + floor(uTime * 3.0));
+        float angle = rnd * 6.2831853;
+        vec2 dir = vec2(cos(angle), sin(angle));
+        float smearAmt = mix(0.0, 0.05, i) * step(0.55, rnd);
+
+        vec3 smeared = vec3(0.0);
+        const int SAMPLES = 6;
+        for (int s = 0; s < SAMPLES; s++) {
+            float t = float(s) / float(SAMPLES - 1);
+            smeared += texture(uTexture, uv + dir * smearAmt * t).rgb;
+        }
+        smeared /= float(SAMPLES);
+        color = mix(color, smeared, min(i * 1.2, 1.0));
+
+        // Резкие блочные скачки поверх смаза.
+        float jumpChance = rand(block + floor(uTime * 10.0) + 5.0);
+        if (jumpChance > 0.92) {
+            vec2 jump = (vec2(rand(block), rand(block + 1.0)) - 0.5) * 0.1 * i;
+            color = texture(uTexture, uv + jump).rgb;
+        }
+
+        // Фиолетово-тёмный оттенок, как при сильном пережатии видео.
+        color = mix(color, color * vec3(0.75, 0.55, 0.95), 0.5 * i);
+        color *= mix(1.0, 0.75, i * 0.5);
     }
 
     fragColor = vec4(color, 1.0);

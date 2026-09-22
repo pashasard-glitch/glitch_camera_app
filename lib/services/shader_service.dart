@@ -57,7 +57,7 @@ class ShaderService {
       shader.setFloat(1, srcH);
       shader.setFloat(2, time);
       shader.setFloat(3, flags.toDouble());
-      for (int i = 0; i < 10; i++) {
+      for (int i = 0; i < 11; i++) {
         shader.setFloat(
           4 + i,
           i < effectIntensities.length ? effectIntensities[i] : 0.8,
