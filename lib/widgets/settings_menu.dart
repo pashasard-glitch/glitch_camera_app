@@ -10,9 +10,13 @@ class SettingsMenu extends StatefulWidget {
   final List<TrackerConfig> trackerConfigs;
   final TrackingMode trackingMode;
   final double trackingVisibleDuration;
+  final Color trackingColor;
+  final bool trackingWebEnabled;
   final ValueChanged<List<TrackerConfig>> onTrackerConfigsChanged;
   final ValueChanged<TrackingMode> onTrackingModeChanged;
   final ValueChanged<double> onTrackingVisibleDurationChanged;
+  final ValueChanged<Color> onTrackingColorChanged;
+  final ValueChanged<bool> onTrackingWebEnabledChanged;
 
   const SettingsMenu({
     super.key,
@@ -21,9 +25,13 @@ class SettingsMenu extends StatefulWidget {
     required this.trackerConfigs,
     required this.trackingMode,
     required this.trackingVisibleDuration,
+    required this.trackingColor,
+    required this.trackingWebEnabled,
     required this.onTrackerConfigsChanged,
     required this.onTrackingModeChanged,
     required this.onTrackingVisibleDurationChanged,
+    required this.onTrackingColorChanged,
+    required this.onTrackingWebEnabledChanged,
   });
 
   @override
@@ -40,6 +48,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
       TextEditingController(text: _fmt(widget.videoSpeed));
   late int _trackerCount = widget.trackerConfigs.length;
   late TrackingMode _trackingMode = widget.trackingMode;
+  late Color _trackingColor = widget.trackingColor;
 
   @override
   void dispose() {
@@ -88,6 +97,8 @@ class _SettingsMenuState extends State<SettingsMenu> {
           configs: widget.trackerConfigs,
           mode: widget.trackingMode,
           visibleDuration: widget.trackingVisibleDuration,
+          color: widget.trackingColor,
+          webEnabled: widget.trackingWebEnabled,
           onConfigsChanged: (list) {
             widget.onTrackerConfigsChanged(list);
             setState(() => _trackerCount = list.length);
@@ -97,6 +108,11 @@ class _SettingsMenuState extends State<SettingsMenu> {
             setState(() => _trackingMode = m);
           },
           onVisibleDurationChanged: widget.onTrackingVisibleDurationChanged,
+          onColorChanged: (c) {
+            widget.onTrackingColorChanged(c);
+            setState(() => _trackingColor = c);
+          },
+          onWebEnabledChanged: widget.onTrackingWebEnabledChanged,
         ),
       ),
     );
@@ -200,6 +216,15 @@ class _SettingsMenuState extends State<SettingsMenu> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 onTap: _openTrackerSettings,
+                leading: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: _trackingColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                ),
                 title: const Text(
                   'ДОБАВИТЬ ТРЕКЕР',
                   style: TextStyle(color: Colors.cyanAccent, letterSpacing: 2),

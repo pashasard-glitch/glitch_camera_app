@@ -24,9 +24,6 @@ class TrackingBox {
 /// результат что на экране, что при вшивании в сохранённое фото/видео.
 class TrackingRenderer {
   static const _glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&@*';
-
-  // Сколько ближайших соседей соединяем линией у безымянных трекеров —
-  // чем больше, тем гуще "паутина".
   static const int _meshNeighbors = 2;
 
   static int _mix(int seed, int k) {
@@ -124,6 +121,39 @@ class TrackingRenderer {
     return boxes;
   }
 
+  static void _drawMesh(
+    Canvas canvas,
+    List<TrackingBox> targets,
+    Color color,
+  ) {
+    if (targets.length < 2) return;
+    final linePaint = Paint()
+      ..color = color.withOpacity(0.4)
+      ..strokeWidth = 1;
+    final n = targets.length;
+    final drawn = <int>{};
+
+    for (int i = 0; i < n; i++) {
+      final dists = <MapEntry<int, double>>[];
+      for (int j = 0; j < n; j++) {
+        if (i == j) continue;
+        final d =
+            (targets[i].rect.center - targets[j].rect.center).distanceSquared;
+        dists.add(MapEntry(j, d));
+      }
+      dists.sort((a, b) => a.value.compareTo(b.value));
+
+      for (final e in dists.take(_meshNeighbors)) {
+        final j = e.key;
+        final key = i < j ? i * 100000 + j : j * 100000 + i;
+        if (drawn.add(key)) {
+          canvas.drawLine(
+              targets[i].rect.center, targets[j].rect.center, linePaint);
+        }
+      }
+    }
+  }
+
   static void paint(
     Canvas canvas,
     Size size,
@@ -131,6 +161,8 @@ class TrackingRenderer {
     List<TrackerConfig> configs,
     TrackingMode mode,
     double visibleDuration,
+    Color color,
+    bool webEnabled,
   ) {
     final boxes = boxesAt(
       time: time,
@@ -140,45 +172,17 @@ class TrackingRenderer {
       visibleDuration: visibleDuration,
     );
 
-    // Паутина: каждый безымянный трекер соединён с несколькими ближайшими.
-    final denseBoxes = boxes.where((b) => b.dense).toList();
-    if (denseBoxes.length > 1) {
-      final linePaint = Paint()
-        ..color = Colors.white.withOpacity(0.4)
-        ..strokeWidth = 1;
-      final n = denseBoxes.length;
-      final drawn = <int>{};
-
-      for (int i = 0; i < n; i++) {
-        final dists = <MapEntry<int, double>>[];
-        for (int j = 0; j < n; j++) {
-          if (i == j) continue;
-          final d = (denseBoxes[i].rect.center - denseBoxes[j].rect.center)
-              .distanceSquared;
-          dists.add(MapEntry(j, d));
-        }
-        dists.sort((a, b) => a.value.compareTo(b.value));
-
-        for (final e in dists.take(_meshNeighbors)) {
-          final j = e.key;
-          final key = i < j ? i * 100000 + j : j * 100000 + i;
-          if (drawn.add(key)) {
-            canvas.drawLine(
-              denseBoxes[i].rect.center,
-              denseBoxes[j].rect.center,
-              linePaint,
-            );
-          }
-        }
-      }
-    }
+    // Паутина: либо между всеми трекерами, либо только между безымянными.
+    final meshTargets =
+        webEnabled ? boxes : boxes.where((b) => b.dense).toList();
+    _drawMesh(canvas, meshTargets, color);
 
     final boxPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     for (final b in boxes) {
-      boxPaint.color = Colors.cyanAccent.withOpacity(b.glow);
+      boxPaint.color = color.withOpacity(b.glow);
 
       if (b.dense) {
         canvas.drawRect(b.rect, boxPaint);
@@ -186,7 +190,7 @@ class TrackingRenderer {
           text: TextSpan(
             text: b.tag,
             style: TextStyle(
-              color: Colors.white.withOpacity(b.glow),
+              color: color.withOpacity(b.glow),
               fontSize: 11,
               fontFamily: 'monospace',
             ),
@@ -200,7 +204,7 @@ class TrackingRenderer {
           text: TextSpan(
             text: '${b.label}\n${b.tag}',
             style: TextStyle(
-              color: Colors.cyanAccent.withOpacity(b.glow),
+              color: color.withOpacity(b.glow),
               fontSize: 11,
               letterSpacing: 1,
               fontFamily: 'monospace',
