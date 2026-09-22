@@ -25,6 +25,10 @@ class TrackingBox {
 class TrackingRenderer {
   static const _glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&@*';
 
+  // Сколько ближайших соседей соединяем линией у безымянных трекеров —
+  // чем больше, тем гуще "паутина".
+  static const int _meshNeighbors = 2;
+
   static int _mix(int seed, int k) {
     var n = seed * 374761393 + k * 668265263;
     n = (n ^ (n >> 13)) * 1274126177;
@@ -44,6 +48,11 @@ class TrackingRenderer {
     return sb.toString();
   }
 
+  static String _hexTag(int seed) {
+    final v = _mix(seed, 0) % 256;
+    return '0x${v.toRadixString(16).padLeft(2, '0').toUpperCase()}';
+  }
+
   static List<TrackingBox> boxesAt({
     required double time,
     required Size size,
@@ -55,7 +64,6 @@ class TrackingRenderer {
     final minSide = math.min(size.width, size.height);
     final boxes = <TrackingBox>[];
     final alwaysOn = mode != TrackingMode.random;
-    int denseCounter = 0;
 
     for (int i = 0; i < configs.length; i++) {
       final c = configs[i];
@@ -95,17 +103,11 @@ class TrackingRenderer {
       final segment = (time / 0.06).floor();
       final isDense = c.label.isEmpty;
 
-      String tag;
-      if (isDense) {
-        tag = c.randomTag
-            ? _fastTag(seed, segment, length: 3)
-            : denseCounter.toString();
-        denseCounter++;
-      } else {
-        tag = c.randomTag
-            ? _fastTag(seed, segment)
-            : 'OBJ_${10 + (_hash(seed, 0) * 89).floor()}';
-      }
+      final tag = isDense
+          ? (c.randomTag ? _fastTag(seed, segment, length: 3) : _hexTag(seed))
+          : (c.randomTag
+              ? _fastTag(seed, segment)
+              : 'OBJ_${10 + (_hash(seed, 0) * 89).floor()}');
 
       boxes.add(TrackingBox(
         rect: Rect.fromCenter(
@@ -138,18 +140,36 @@ class TrackingRenderer {
       visibleDuration: visibleDuration,
     );
 
-    // Тонкие линии между соседними безымянными трекерами — как в примере.
+    // Паутина: каждый безымянный трекер соединён с несколькими ближайшими.
     final denseBoxes = boxes.where((b) => b.dense).toList();
     if (denseBoxes.length > 1) {
       final linePaint = Paint()
-        ..color = Colors.white.withOpacity(0.45)
+        ..color = Colors.white.withOpacity(0.4)
         ..strokeWidth = 1;
-      for (int i = 0; i < denseBoxes.length - 1; i++) {
-        canvas.drawLine(
-          denseBoxes[i].rect.center,
-          denseBoxes[i + 1].rect.center,
-          linePaint,
-        );
+      final n = denseBoxes.length;
+      final drawn = <int>{};
+
+      for (int i = 0; i < n; i++) {
+        final dists = <MapEntry<int, double>>[];
+        for (int j = 0; j < n; j++) {
+          if (i == j) continue;
+          final d = (denseBoxes[i].rect.center - denseBoxes[j].rect.center)
+              .distanceSquared;
+          dists.add(MapEntry(j, d));
+        }
+        dists.sort((a, b) => a.value.compareTo(b.value));
+
+        for (final e in dists.take(_meshNeighbors)) {
+          final j = e.key;
+          final key = i < j ? i * 100000 + j : j * 100000 + i;
+          if (drawn.add(key)) {
+            canvas.drawLine(
+              denseBoxes[i].rect.center,
+              denseBoxes[j].rect.center,
+              linePaint,
+            );
+          }
+        }
       }
     }
 
@@ -161,14 +181,13 @@ class TrackingRenderer {
       boxPaint.color = Colors.cyanAccent.withOpacity(b.glow);
 
       if (b.dense) {
-        // Простой прямоугольник с номером — как в примере.
         canvas.drawRect(b.rect, boxPaint);
         final tp = TextPainter(
           text: TextSpan(
             text: b.tag,
             style: TextStyle(
               color: Colors.white.withOpacity(b.glow),
-              fontSize: 12,
+              fontSize: 11,
               fontFamily: 'monospace',
             ),
           ),
