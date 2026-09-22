@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../models/tracker_config.dart';
 import '../services/tracking_renderer.dart';
 
 class TrackingOverlay extends StatelessWidget {
-  final TrackingRenderer renderer;
+  final List<TrackerConfig> configs;
+  final TrackingMode mode;
+  final double visibleDuration;
   final double time;
 
   const TrackingOverlay({
     super.key,
-    required this.renderer,
+    required this.configs,
+    required this.mode,
+    required this.visibleDuration,
     required this.time,
   });
 
@@ -16,19 +21,23 @@ class TrackingOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size.infinite,
-      painter: _TrackingPainter(renderer, time),
+      painter: _TrackingPainter(configs, mode, visibleDuration, time),
     );
   }
 }
 
 class _TrackingPainter extends CustomPainter {
-  final TrackingRenderer renderer;
+  final List<TrackerConfig> configs;
+  final TrackingMode mode;
+  final double visibleDuration;
   final double time;
 
-  _TrackingPainter(this.renderer, this.time);
+  _TrackingPainter(this.configs, this.mode, this.visibleDuration, this.time);
 
   @override
-  void paint(Canvas canvas, Size size) => renderer.paint(canvas, size, time);
+  void paint(Canvas canvas, Size size) {
+    TrackingRenderer.paint(canvas, size, time, configs, mode, visibleDuration);
+  }
 
   @override
   bool shouldRepaint(covariant _TrackingPainter oldDelegate) => true;

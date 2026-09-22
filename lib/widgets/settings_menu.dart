@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/tracker_config.dart';
+import '../screens/tracker_settings_screen.dart';
+
 class SettingsMenu extends StatefulWidget {
   final double videoSpeed;
   final ValueChanged<double> onVideoSpeedChanged;
+  final List<TrackerConfig> trackerConfigs;
+  final TrackingMode trackingMode;
+  final double trackingVisibleDuration;
+  final ValueChanged<List<TrackerConfig>> onTrackerConfigsChanged;
+  final ValueChanged<TrackingMode> onTrackingModeChanged;
+  final ValueChanged<double> onTrackingVisibleDurationChanged;
 
   const SettingsMenu({
     super.key,
     required this.videoSpeed,
     required this.onVideoSpeedChanged,
+    required this.trackerConfigs,
+    required this.trackingMode,
+    required this.trackingVisibleDuration,
+    required this.onTrackerConfigsChanged,
+    required this.onTrackingModeChanged,
+    required this.onTrackingVisibleDurationChanged,
   });
 
   @override
@@ -23,6 +38,8 @@ class _SettingsMenuState extends State<SettingsMenu> {
   late double _speed = widget.videoSpeed;
   late final TextEditingController _text =
       TextEditingController(text: _fmt(widget.videoSpeed));
+  late int _trackerCount = widget.trackerConfigs.length;
+  late TrackingMode _trackingMode = widget.trackingMode;
 
   @override
   void dispose() {
@@ -39,9 +56,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
     return s;
   }
 
-  double? _parse(String s) {
-    return double.tryParse(s.trim().replaceAll(',', '.'));
-  }
+  double? _parse(String s) => double.tryParse(s.trim().replaceAll(',', '.'));
 
   void _apply(double v, {bool updateText = true}) {
     final clamped = v.clamp(_minSpeed, _maxSpeed).toDouble();
@@ -63,10 +78,38 @@ class _SettingsMenuState extends State<SettingsMenu> {
 
   void _commitText() {
     final v = _parse(_text.text);
-    if (v == null) {
-      _apply(_speed);
-    } else {
-      _apply(v);
+    _apply(v ?? _speed);
+  }
+
+  Future<void> _openTrackerSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TrackerSettingsScreen(
+          configs: widget.trackerConfigs,
+          mode: widget.trackingMode,
+          visibleDuration: widget.trackingVisibleDuration,
+          onConfigsChanged: (list) {
+            widget.onTrackerConfigsChanged(list);
+            setState(() => _trackerCount = list.length);
+          },
+          onModeChanged: (m) {
+            widget.onTrackingModeChanged(m);
+            setState(() => _trackingMode = m);
+          },
+          onVisibleDurationChanged: widget.onTrackingVisibleDurationChanged,
+        ),
+      ),
+    );
+  }
+
+  String _modeLabel(TrackingMode m) {
+    switch (m) {
+      case TrackingMode.grid:
+        return 'сетка';
+      case TrackingMode.focus:
+        return 'фокус';
+      default:
+        return 'обычный';
     }
   }
 
@@ -93,10 +136,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
               const SizedBox(height: 20),
               Text(
                 'СКОРОСТЬ ВИДЕО: ${_fmt(_speed)}×',
-                style: const TextStyle(
-                  color: Colors.cyanAccent,
-                  letterSpacing: 2,
-                ),
+                style: const TextStyle(color: Colors.cyanAccent, letterSpacing: 2),
               ),
               Slider(
                 value: _speed,
@@ -125,11 +165,10 @@ class _SettingsMenuState extends State<SettingsMenu> {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               TextField(
                 controller: _text,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                 ],
@@ -141,9 +180,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
                   suffixText: '×',
                   suffixStyle: const TextStyle(color: Colors.cyanAccent),
                   enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Colors.cyanAccent.withOpacity(0.5),
-                    ),
+                    borderSide: BorderSide(color: Colors.cyanAccent.withOpacity(0.5)),
                   ),
                   focusedBorder: const OutlineInputBorder(
                     borderSide: BorderSide(color: Colors.cyanAccent),
@@ -152,12 +189,27 @@ class _SettingsMenuState extends State<SettingsMenu> {
                 onChanged: _onTyped,
                 onSubmitted: (_) => _commitText(),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               const Text(
-                '1× — обычная скорость. 2× — быстрее в два раза, '
-                '0.5× — медленнее в два раза. '
-                'Звук записывается только на 1×.',
+                '1× — обычная скорость. Звук пишется только на 1×.',
                 style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                onTap: _openTrackerSettings,
+                title: const Text(
+                  'ДОБАВИТЬ ТРЕКЕР',
+                  style: TextStyle(color: Colors.cyanAccent, letterSpacing: 2),
+                ),
+                subtitle: Text(
+                  '$_trackerCount шт. · режим: ${_modeLabel(_trackingMode)}',
+                  style: const TextStyle(color: Colors.white54),
+                ),
+                trailing:
+                    const Icon(Icons.chevron_right, color: Colors.cyanAccent),
               ),
             ],
           ),

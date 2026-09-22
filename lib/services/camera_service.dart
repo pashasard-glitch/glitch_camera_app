@@ -27,7 +27,6 @@ class _YuvFrame {
   });
 }
 
-/// Работает в отдельном изоляте, целочисленная математика.
 Uint8List _yuvToRgba(_YuvFrame f) {
   final w = f.width;
   final h = f.height;
@@ -62,13 +61,12 @@ class CameraService {
   int sensorOrientation = 90;
   List<CameraDescription> _cameras = [];
   CameraLensDirection currentLens = CameraLensDirection.back;
+  double minZoom = 1.0;
+  double maxZoom = 1.0;
 
   bool get hasFrontCamera =>
       _cameras.any((c) => c.lensDirection == CameraLensDirection.front);
 
-  /// Поворот по часовой стрелке (в градусах), который нужно применить
-  /// к кадру с датчика, чтобы фото или видео были ровными, когда телефон
-  /// повёрнут на [deviceRotation] против часовой от вертикали.
   int imageRotation(int deviceRotation) {
     if (currentLens == CameraLensDirection.front) {
       return (sensorOrientation + deviceRotation) % 360;
@@ -110,7 +108,6 @@ class CameraService {
     controller = CameraController(
       camera,
       ResolutionPreset.medium,
-      // Звук пишет отдельный рекордер.
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -119,6 +116,20 @@ class CameraService {
     try {
       await controller!.setFocusMode(FocusMode.auto);
       await controller!.setExposureMode(ExposureMode.auto);
+    } catch (_) {}
+    try {
+      minZoom = await controller!.getMinZoomLevel();
+      maxZoom = await controller!.getMaxZoomLevel();
+    } catch (_) {
+      minZoom = 1.0;
+      maxZoom = 1.0;
+    }
+  }
+
+  Future<void> setZoom(double zoom) async {
+    if (controller == null) return;
+    try {
+      await controller!.setZoomLevel(zoom.clamp(minZoom, maxZoom));
     } catch (_) {}
   }
 
@@ -130,9 +141,7 @@ class CameraService {
     } catch (_) {}
   }
 
-  Future<void> startStream(
-    void Function(ui.Image frame) onFrame,
-  ) async {
+  Future<void> startStream(void Function(ui.Image frame) onFrame) async {
     if (controller == null) return;
     await controller!.startImageStream((CameraImage image) async {
       if (_busy) return;

@@ -2,148 +2,131 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../models/tracker_config.dart';
+
 class TrackingBox {
   final Rect rect;
   final String tag;
   final String label;
   final double glow;
-  final double pct;
 
   TrackingBox({
     required this.rect,
     required this.tag,
     required this.label,
     required this.glow,
-    required this.pct,
   });
 }
 
-class _TargetDef {
-  final int seed;
-  final double baseX;
-  final double baseY;
-  final double rangeX;
-  final double rangeY;
-  final double sizeFrac;
-  final double interval;
-  final double phase;
-  final String tag;
-  final String label;
-
-  _TargetDef({
-    required this.seed,
-    required this.baseX,
-    required this.baseY,
-    required this.rangeX,
-    required this.rangeY,
-    required this.sizeFrac,
-    required this.interval,
-    required this.phase,
-    required this.tag,
-    required this.label,
-  });
-}
-
-/// Декоративный "AR-трекинг": рамки резко перескакивают в новое положение
-/// через равные промежутки времени, а не плавно едут по экрану.
+/// Декоративный "AR-трекинг". Чистые функции от времени — одинаковый
+/// результат что на экране, что при вшивании в сохранённое фото/видео.
 class TrackingRenderer {
-  static const _labels = [
-    'TRACKING',
-    'SCANNING',
-    'LOCKED',
-    'ANALYZING',
-    'MATCH',
-    'ID CONF.',
-  ];
+  static const _glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&@*';
 
-  final List<_TargetDef> _targets;
-
-  TrackingRenderer({int count = 4, int? seed})
-      : _targets = _generate(count, seed);
-
-  static List<_TargetDef> _generate(int count, int? seed) {
-    final rand = math.Random(seed);
-    return List.generate(count, (i) {
-      return _TargetDef(
-        seed: rand.nextInt(1 << 30),
-        baseX: 0.18 + rand.nextDouble() * 0.6,
-        baseY: 0.18 + rand.nextDouble() * 0.55,
-        rangeX: 0.06 + rand.nextDouble() * 0.1,
-        rangeY: 0.06 + rand.nextDouble() * 0.1,
-        sizeFrac: 0.15 + rand.nextDouble() * 0.08,
-        // Держит положение 0.35–0.85 сек, потом резкий скачок.
-        interval: 0.35 + rand.nextDouble() * 0.5,
-        phase: rand.nextDouble() * 6,
-        tag: 'OBJ_${10 + rand.nextInt(89)}',
-        label: _labels[rand.nextInt(_labels.length)],
-      );
-    });
-  }
-
-  int _mix(int seed, int k) {
+  static int _mix(int seed, int k) {
     var n = seed * 374761393 + k * 668265263;
     n = (n ^ (n >> 13)) * 1274126177;
     n = n ^ (n >> 16);
     return n & 0x7fffffff;
   }
 
-  double _hash(int seed, int k) => _mix(seed, k) / 0x7fffffff;
+  static double _hash(int seed, int k) => _mix(seed, k) / 0x7fffffff;
 
-  Offset _jumpOffset(_TargetDef t, int k) {
-    final hx = _hash(t.seed, k * 2);
-    final hy = _hash(t.seed, k * 2 + 1);
-    return Offset((hx * 2 - 1) * t.rangeX, (hy * 2 - 1) * t.rangeY);
+  static String _fastTag(int seed, int segment, {int length = 5}) {
+    final sb = StringBuffer();
+    for (int i = 0; i < length; i++) {
+      final h = _hash(seed * 977 + i * 131, segment);
+      final idx = (h * _glyphs.length).floor().clamp(0, _glyphs.length - 1);
+      sb.write(_glyphs[idx]);
+    }
+    return sb.toString();
   }
 
-  List<TrackingBox> boxesAt(double time, Size size) {
+  static List<TrackingBox> boxesAt({
+    required double time,
+    required Size size,
+    required List<TrackerConfig> configs,
+    required TrackingMode mode,
+    required double visibleDuration,
+  }) {
+    if (configs.isEmpty || size.width <= 0 || size.height <= 0) return [];
     final minSide = math.min(size.width, size.height);
+    final boxes = <TrackingBox>[];
+    final alwaysOn = mode != TrackingMode.random;
 
-    return _targets.map((t) {
-      final localT = (time + t.phase) / t.interval;
-      final k = localT.floor();
-      final frac = localT - k;
+    for (int i = 0; i < configs.length; i++) {
+      final c = configs[i];
+      final seed = c.id.hashCode & 0x7fffffff;
+      final gap = visibleDuration * (0.35 + _hash(seed, 999) * 0.5);
+      final cycleLen = math.max(0.05, visibleDuration + gap);
+      final k = (time / cycleLen).floor();
+      final phase = time - k * cycleLen;
+      final visible = alwaysOn || phase < visibleDuration;
+      if (!visible) continue;
 
-      // Скачок занимает первые 25% интервала, дальше рамка стоит на месте.
-      const snapFraction = 0.25;
-      final snapT = (frac / snapFraction).clamp(0.0, 1.0);
-      final inv = 1 - snapT;
-      final eased = 1 - inv * inv * inv;
+      double cx, cy;
+      if (mode == TrackingMode.grid) {
+        final cols = math.max(1, math.sqrt(configs.length).ceil());
+        final rows = (configs.length / cols).ceil();
+        final col = i % cols;
+        final row = i ~/ cols;
+        cx = (col + 0.5) / cols * size.width;
+        cy = (row + 0.5) / rows * size.height;
+      } else if (mode == TrackingMode.focus) {
+        // Имитация фокуса на объекте в центре кадра. Настоящего
+        // распознавания человека здесь нет — это декоративная сборка
+        // рамок к центру.
+        final angle = i * 2.399963;
+        final radius = 0.06 * minSide * math.sqrt(i + 1);
+        cx = size.width / 2 + math.cos(angle) * radius;
+        cy = size.height / 2 + math.sin(angle) * radius;
+      } else {
+        final hx = _hash(seed, k * 2);
+        final hy = _hash(seed, k * 2 + 1);
+        cx = (0.15 + hx * 0.7) * size.width;
+        cy = (0.15 + hy * 0.65) * size.height;
+      }
 
-      final offA = _jumpOffset(t, k);
-      final offB = _jumpOffset(t, k + 1);
-      final off = Offset(
-        offA.dx + (offB.dx - offA.dx) * eased,
-        offA.dy + (offB.dy - offA.dy) * eased,
-      );
+      final shakeX = math.sin(time * 23 + seed % 17) * minSide * 0.004;
+      final shakeY = math.cos(time * 19 + seed % 13) * minSide * 0.004;
 
-      // Небольшая высокочастотная дрожь поверх скачков.
-      final shakeX = math.sin(time * 23 + t.phase * 7) * 0.006;
-      final shakeY = math.cos(time * 19 + t.phase * 5) * 0.006;
+      final boxSize = c.sizeFrac * minSide;
+      final blink = (math.sin(time * 6 + seed % 11) + 1) / 2;
 
-      final cx = (t.baseX + off.dx + shakeX) * size.width;
-      final cy = (t.baseY + off.dy + shakeY) * size.height;
-      final boxSize = t.sizeFrac * minSide;
+      final segment = (time / 0.06).floor();
+      final tag = c.randomTag
+          ? _fastTag(seed, segment)
+          : 'OBJ_${10 + (_hash(seed, 0) * 89).floor()}';
 
-      final blink = (math.sin(time * 6 + t.phase * 3) + 1) / 2;
-      final pct = 55 + _hash(t.seed, k) * 40;
-
-      return TrackingBox(
+      boxes.add(TrackingBox(
         rect: Rect.fromCenter(
-          center: Offset(cx, cy),
+          center: Offset(cx + shakeX, cy + shakeY),
           width: boxSize,
           height: boxSize,
         ),
-        tag: t.tag,
-        label: t.label,
-        glow: (0.4 + blink * 0.6).clamp(0.0, 1.0),
-        pct: pct,
-      );
-    }).toList();
+        tag: tag,
+        label: c.label,
+        glow: (0.45 + blink * 0.55).clamp(0.0, 1.0),
+      ));
+    }
+    return boxes;
   }
 
-  void paint(Canvas canvas, Size size, double time) {
-    if (size.width <= 0 || size.height <= 0) return;
-    final boxes = boxesAt(time, size);
+  static void paint(
+    Canvas canvas,
+    Size size,
+    double time,
+    List<TrackerConfig> configs,
+    TrackingMode mode,
+    double visibleDuration,
+  ) {
+    final boxes = boxesAt(
+      time: time,
+      size: size,
+      configs: configs,
+      mode: mode,
+      visibleDuration: visibleDuration,
+    );
     final boxPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
@@ -152,10 +135,9 @@ class TrackingRenderer {
       boxPaint.color = Colors.cyanAccent.withOpacity(b.glow);
       _drawCorners(canvas, b.rect, boxPaint);
 
-      final text = '${b.tag}\n${b.label} ${b.pct.toStringAsFixed(0)}%';
       final tp = TextPainter(
         text: TextSpan(
-          text: text,
+          text: '${b.label}\n${b.tag}',
           style: TextStyle(
             color: Colors.cyanAccent.withOpacity(b.glow),
             fontSize: 11,
@@ -169,9 +151,8 @@ class TrackingRenderer {
     }
   }
 
-  void _drawCorners(Canvas canvas, Rect rect, Paint paint) {
+  static void _drawCorners(Canvas canvas, Rect rect, Paint paint) {
     final len = rect.shortestSide * 0.25;
-
     void corner(Offset origin, Offset dx, Offset dy) {
       canvas.drawLine(origin, origin + dx, paint);
       canvas.drawLine(origin, origin + dy, paint);

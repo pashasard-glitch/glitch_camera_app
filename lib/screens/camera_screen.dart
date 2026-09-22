@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants.dart';
+import '../models/tracker_config.dart';
 import '../services/audio_recorder_service.dart';
 import '../services/camera_service.dart';
 import '../services/gallery_service.dart';
@@ -30,17 +31,13 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen> {
-  // Кадров в секунду в готовом файле. Если видео всё ещё идёт быстрее
-  // реальности, кодировщик не успевает: попробуй уменьшить до 15.
   static const int _videoFps = 24;
-  // Сколько раз максимум можно повторить кадр за один раз (после лагов).
   static const int _maxRepeat = 96;
 
   final _camera = CameraService();
   final _shader = ShaderService();
   final _media = MediaService();
   final _gallery = GalleryService();
-  final _tracking = TrackingRenderer();
   final _videoEncoder = VideoEncoderService();
   final _audioRecorder = AudioRecorderService();
   final _videoMerge = VideoMergeService();
@@ -58,17 +55,14 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _switchingCamera = false;
   bool _trackingEnabled = false;
 
-  // Положение телефона: 0 / 90 / 180 / 270 против часовой от вертикали.
+  List<TrackerConfig> _trackerConfigs = TrackerConfig.defaults();
+  TrackingMode _trackingMode = TrackingMode.random;
+  double _trackingVisibleDuration = 0.6;
+
   int _deviceRotation = 0;
-
-  // true: фото и видео ровные по положению телефона.
-  // false: фото и видео всегда вертикальные.
   bool _autoOrientation = true;
-
-  // Режим зеркала: 0 = авто (по камере), 1 = всегда вкл, 2 = всегда выкл.
   int _mirrorMode = 0;
 
-  // Скорость видео из настроек и скорость текущей записи.
   double _videoSpeed = 1.0;
   double _recSpeed = 1.0;
   bool _recWithAudio = true;
@@ -83,6 +77,15 @@ class _CameraScreenState extends State<CameraScreen> {
   Timer? _focusIndicatorTimer;
   Timer? _tickTimer;
 
+  // Зум.
+  double _zoom = 1.0;
+  double _baseZoom = 1.0;
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+  Offset? _scaleStartFocal;
+  bool _didPinch = false;
+  bool _pinchActive = false;
+
   bool get _mirror {
     switch (_mirrorMode) {
       case 1:
@@ -94,7 +97,6 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  // Поворот для сохраняемых фото и видео.
   int get _fileRotation =>
       _camera.imageRotation(_autoOrientation ? _deviceRotation : 0);
 
@@ -107,8 +109,6 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
-    // Интерфейс всегда вертикальный: превью работает как видоискатель,
-    // а положение телефона учитывается только для файлов.
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
     _orientation = OrientationService(
@@ -135,8 +135,14 @@ class _CameraScreenState extends State<CameraScreen> {
       await _shader.load();
       await _camera.init();
       if (mounted) {
-        setState(() => _deviceRotation = _orientation.deviceRotation);
+        setState(() {
+          _deviceRotation = _orientation.deviceRotation;
+          _minZoom = _camera.minZoom;
+          _maxZoom = _camera.maxZoom;
+          _zoom = _minZoom;
+        });
       }
+      await _camera.setZoom(_zoom);
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
         if (_isRecording) {
@@ -166,16 +172,14 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
-  void _handleTapToFocus(TapDownDetails details, BoxConstraints constraints) {
+  void _focusAt(Offset localPosition, BoxConstraints constraints) {
     final size = Size(constraints.maxWidth, constraints.maxHeight);
-    final dx = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
-    final dy = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
+    final dx = (localPosition.dx / size.width).clamp(0.0, 1.0);
+    final dy = (localPosition.dy / size.height).clamp(0.0, 1.0);
 
     _camera.focusAndExposeAt(Offset(dx, dy));
 
-    setState(() {
-      _focusPoint = details.localPosition;
-    });
+    setState(() => _focusPoint = localPosition);
 
     _focusIndicatorTimer?.cancel();
     _focusIndicatorTimer = Timer(const Duration(milliseconds: 800), () {
@@ -193,9 +197,7 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   void _cycleMirror() {
-    setState(() {
-      _mirrorMode = (_mirrorMode + 1) % 3;
-    });
+    setState(() => _mirrorMode = (_mirrorMode + 1) % 3);
     switch (_mirrorMode) {
       case 0:
         _toast('Зеркало: авто (фронталка)');
@@ -237,7 +239,14 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       await _camera.stopStream();
       await _camera.switchCamera();
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {
+          _minZoom = _camera.minZoom;
+          _maxZoom = _camera.maxZoom;
+          _zoom = _minZoom;
+        });
+      }
+      await _camera.setZoom(_zoom);
       await _camera.startStream((img) {
         if (mounted) setState(() => _frame = img);
         if (_isRecording) {
@@ -255,7 +264,6 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  /// Если трекинг включён, впечатывает рамки прямо в картинку.
   Future<ui.Image> _bakeTracking(ui.Image source) async {
     if (!_trackingEnabled) return source;
     final recorder = ui.PictureRecorder();
@@ -263,7 +271,14 @@ class _CameraScreenState extends State<CameraScreen> {
     final w = source.width.toDouble();
     final h = source.height.toDouble();
     canvas.drawImage(source, Offset.zero, Paint());
-    _tracking.paint(canvas, Size(w, h), _time);
+    TrackingRenderer.paint(
+      canvas,
+      Size(w, h),
+      _time,
+      _trackerConfigs,
+      _trackingMode,
+      _trackingVisibleDuration,
+    );
     final picture = recorder.endRecording();
     return picture.toImage(source.width, source.height);
   }
@@ -271,8 +286,6 @@ class _CameraScreenState extends State<CameraScreen> {
   Future<void> _appendVideoFrame(ui.Image img) async {
     if (_videoFrameBusy || _shader.program == null) return;
 
-    // Сколько кадров должно быть в файле к этому моменту записи.
-    // Кадров не хватает: повторяем текущий. Кадров лишка: пропускаем.
     final seconds = _recClock.elapsedMicroseconds / 1000000.0;
     final target = (seconds * _videoFps / _recSpeed).floor() + 1;
     var repeat = target - _emittedFrames;
@@ -376,7 +389,6 @@ class _CameraScreenState extends State<CameraScreen> {
         _videoRawPath = await _media.tempVideoNoAudioPath();
         _videoRotation = rotation;
         _recSpeed = _videoSpeed;
-        // Звук совпадает с видео только на обычной скорости.
         _recWithAudio = (_recSpeed - 1.0).abs() < 0.001;
 
         await _videoEncoder.start(
@@ -407,7 +419,6 @@ class _CameraScreenState extends State<CameraScreen> {
         setState(() => _isRecording = false);
         _recClock.stop();
 
-        // Ждём, пока допишется последний кадр.
         for (int i = 0; i < 50 && _videoFrameBusy; i++) {
           await Future.delayed(const Duration(milliseconds: 20));
         }
@@ -425,8 +436,7 @@ class _CameraScreenState extends State<CameraScreen> {
           );
         }
 
-        final pathToSave =
-            merged ? finalPath : (_videoRawPath ?? finalPath);
+        final pathToSave = merged ? finalPath : (_videoRawPath ?? finalPath);
         try {
           await _gallery.saveVideo(pathToSave);
         } catch (_) {}
@@ -487,6 +497,14 @@ class _CameraScreenState extends State<CameraScreen> {
         child: SettingsMenu(
           videoSpeed: _videoSpeed,
           onVideoSpeedChanged: (v) => _videoSpeed = v,
+          trackerConfigs: _trackerConfigs,
+          trackingMode: _trackingMode,
+          trackingVisibleDuration: _trackingVisibleDuration,
+          onTrackerConfigsChanged: (list) =>
+              setState(() => _trackerConfigs = list),
+          onTrackingModeChanged: (m) => setState(() => _trackingMode = m),
+          onTrackingVisibleDurationChanged: (v) =>
+              setState(() => _trackingVisibleDuration = v),
         ),
       ),
     );
@@ -496,7 +514,6 @@ class _CameraScreenState extends State<CameraScreen> {
   Widget build(BuildContext context) {
     final program = _shader.program;
     final frame = _frame;
-    // Превью: поворот кадра определяется только датчиком камеры.
     final previewTurns = (_camera.sensorOrientation ~/ 90) % 4;
     final mirror = _mirror;
 
@@ -509,7 +526,31 @@ class _CameraScreenState extends State<CameraScreen> {
             LayoutBuilder(
               builder: (context, constraints) => GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTapDown: (d) => _handleTapToFocus(d, constraints),
+                onScaleStart: (details) {
+                  _scaleStartFocal = details.localFocalPoint;
+                  _baseZoom = _zoom;
+                  _didPinch = false;
+                  setState(() => _pinchActive = true);
+                },
+                onScaleUpdate: (details) {
+                  if ((details.scale - 1.0).abs() > 0.02) {
+                    _didPinch = true;
+                    final z =
+                        (_baseZoom * details.scale).clamp(_minZoom, _maxZoom);
+                    if ((z - _zoom).abs() > 0.005) {
+                      _zoom = z;
+                      _camera.setZoom(z);
+                      setState(() {});
+                    }
+                  }
+                },
+                onScaleEnd: (details) {
+                  if (!_didPinch && _scaleStartFocal != null) {
+                    _focusAt(_scaleStartFocal!, constraints);
+                  }
+                  _scaleStartFocal = null;
+                  setState(() => _pinchActive = false);
+                },
                 child: ClipRect(
                   child: Transform.flip(
                     flipX: mirror,
@@ -534,7 +575,32 @@ class _CameraScreenState extends State<CameraScreen> {
           if (_trackingEnabled)
             Positioned.fill(
               child: IgnorePointer(
-                child: TrackingOverlay(renderer: _tracking, time: _time),
+                child: TrackingOverlay(
+                  configs: _trackerConfigs,
+                  mode: _trackingMode,
+                  visibleDuration: _trackingVisibleDuration,
+                  time: _time,
+                ),
+              ),
+            ),
+          if (_pinchActive && _maxZoom > _minZoom)
+            Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 60),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_zoom.toStringAsFixed(1)}×',
+                    style: const TextStyle(
+                        color: Colors.cyanAccent, fontSize: 16),
+                  ),
+                ),
               ),
             ),
           if (_focusPoint != null)
@@ -566,17 +632,13 @@ class _CameraScreenState extends State<CameraScreen> {
                       SizedBox(width: 6),
                       Text(
                         'REC',
-                        style: TextStyle(
-                          color: Colors.red,
-                          letterSpacing: 3,
-                        ),
+                        style: TextStyle(color: Colors.red, letterSpacing: 3),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-          // Кнопки справа сверху: автоповорот, зеркало, трекинг, плеер, настройки.
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
@@ -589,9 +651,8 @@ class _CameraScreenState extends State<CameraScreen> {
                       tooltip: 'Автоповорот',
                       icon: Icon(
                         Icons.screen_lock_rotation,
-                        color: _autoOrientation
-                            ? Colors.cyanAccent
-                            : Colors.grey,
+                        color:
+                            _autoOrientation ? Colors.cyanAccent : Colors.grey,
                         size: 30,
                       ),
                       onPressed: _toggleAutoOrientation,
@@ -600,9 +661,8 @@ class _CameraScreenState extends State<CameraScreen> {
                       tooltip: 'Зеркало',
                       icon: Icon(
                         Icons.flip,
-                        color: _mirrorMode == 2
-                            ? Colors.grey
-                            : Colors.cyanAccent,
+                        color:
+                            _mirrorMode == 2 ? Colors.grey : Colors.cyanAccent,
                         size: 30,
                       ),
                       onPressed: _cycleMirror,
@@ -620,20 +680,14 @@ class _CameraScreenState extends State<CameraScreen> {
                     ),
                     IconButton(
                       tooltip: 'Плеер',
-                      icon: const Icon(
-                        Icons.photo_library,
-                        color: Colors.cyanAccent,
-                        size: 30,
-                      ),
+                      icon: const Icon(Icons.photo_library,
+                          color: Colors.cyanAccent, size: 30),
                       onPressed: _openGallery,
                     ),
                     IconButton(
                       tooltip: 'Настройки',
-                      icon: const Icon(
-                        Icons.settings,
-                        color: Colors.cyanAccent,
-                        size: 30,
-                      ),
+                      icon: const Icon(Icons.settings,
+                          color: Colors.cyanAccent, size: 30),
                       onPressed: _showSettings,
                     ),
                   ],
@@ -662,8 +716,8 @@ class _CameraScreenState extends State<CameraScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white,
-                          border: Border.all(
-                              color: Colors.cyanAccent, width: 3),
+                          border:
+                              Border.all(color: Colors.cyanAccent, width: 3),
                         ),
                       ),
                     ),
