@@ -9,11 +9,13 @@ class TrackerSettingsScreen extends StatefulWidget {
   final double visibleDuration;
   final Color color;
   final bool webEnabled;
+  final bool spotlight;
   final ValueChanged<List<TrackerConfig>> onConfigsChanged;
   final ValueChanged<TrackingMode> onModeChanged;
   final ValueChanged<double> onVisibleDurationChanged;
   final ValueChanged<Color> onColorChanged;
   final ValueChanged<bool> onWebEnabledChanged;
+  final ValueChanged<bool> onSpotlightChanged;
 
   const TrackerSettingsScreen({
     super.key,
@@ -22,11 +24,13 @@ class TrackerSettingsScreen extends StatefulWidget {
     required this.visibleDuration,
     required this.color,
     required this.webEnabled,
+    required this.spotlight,
     required this.onConfigsChanged,
     required this.onModeChanged,
     required this.onVisibleDurationChanged,
     required this.onColorChanged,
     required this.onWebEnabledChanged,
+    required this.onSpotlightChanged,
   });
 
   @override
@@ -39,9 +43,13 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
   late double _duration = widget.visibleDuration;
   late Color _color = widget.color;
   late bool _webEnabled = widget.webEnabled;
+  late bool _spotlight = widget.spotlight;
   late final TextEditingController _hexCtrl =
       TextEditingController(text: _toHex(_color));
   int _nextId = 0;
+
+  bool get _allRandomTag =>
+      _configs.isNotEmpty && _configs.every((c) => c.randomTag);
 
   void _emitConfigs() => widget.onConfigsChanged(List.of(_configs));
 
@@ -80,6 +88,15 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
       g ?? _color.green,
       b ?? _color.blue,
     ));
+  }
+
+  void _setAllRandomTag(bool value) {
+    setState(() {
+      for (int i = 0; i < _configs.length; i++) {
+        _configs[i] = _configs[i].copyWith(randomTag: value);
+      }
+    });
+    _emitConfigs();
   }
 
   Future<void> _addTracker() async {
@@ -270,13 +287,33 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
             children: [
               _modeChip('Обычный', TrackingMode.random),
               _modeChip('Сетка', TrackingMode.grid),
-              _modeChip('Фокус', TrackingMode.focus),
+              _modeChip('Фокус в центр', TrackingMode.focus),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _spotlight,
+            onChanged: (v) {
+              setState(() => _spotlight = v ?? false);
+              widget.onSpotlightChanged(_spotlight);
+            },
+            activeColor: Colors.cyanAccent,
+            checkColor: Colors.black,
+            title: const Text(
+              'Фокус на разных объектах по очереди',
+              style: TextStyle(color: Colors.cyanAccent),
+            ),
+            subtitle: const Text(
+              'Видно только один трекер, потом он пропадает и подсвечивается другой. '
+              'Работает поверх любого режима выше.',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
-            'ВРЕМЯ ПОКАЗА: ${_duration.toStringAsFixed(1)} с'
-            '${_mode != TrackingMode.random ? ' (не влияет в этом режиме)' : ''}',
+            'ВРЕМЯ ПОКАЗА / ПЕРЕКЛЮЧЕНИЯ: ${_duration.toStringAsFixed(1)} с',
             style: const TextStyle(color: Colors.cyanAccent, letterSpacing: 1),
           ),
           Slider(
@@ -370,6 +407,19 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
               Text('${_configs.length} шт.',
                   style: const TextStyle(color: Colors.white54)),
             ],
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _allRandomTag,
+            onChanged:
+                _configs.isEmpty ? null : (v) => _setAllRandomTag(v ?? false),
+            activeColor: Colors.cyanAccent,
+            checkColor: Colors.black,
+            title: const Text(
+              'Случайные символы — сразу у всех',
+              style: TextStyle(color: Colors.cyanAccent, fontSize: 13),
+            ),
           ),
           const SizedBox(height: 8),
           for (int i = 0; i < _configs.length; i++) _trackerCard(i),

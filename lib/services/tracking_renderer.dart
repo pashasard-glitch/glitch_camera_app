@@ -56,11 +56,24 @@ class TrackingRenderer {
     required List<TrackerConfig> configs,
     required TrackingMode mode,
     required double visibleDuration,
+    required bool spotlight,
   }) {
     if (configs.isEmpty || size.width <= 0 || size.height <= 0) return [];
     final minSide = math.min(size.width, size.height);
     final boxes = <TrackingBox>[];
     final alwaysOn = mode != TrackingMode.random;
+
+    // "Фокус по очереди": в любой момент виден только один трекер,
+    // остальные скрыты, интервал переключения — тот же ползунок времени.
+    int? spotlightIndex;
+    double spotlightRamp = 1.0;
+    if (spotlight) {
+      final interval = math.max(0.2, visibleDuration);
+      final k = (time / interval).floor();
+      spotlightIndex = k % configs.length;
+      final phase = time - k * interval;
+      spotlightRamp = (phase / (interval * 0.3)).clamp(0.0, 1.0);
+    }
 
     for (int i = 0; i < configs.length; i++) {
       final c = configs[i];
@@ -69,18 +82,20 @@ class TrackingRenderer {
       final cycleLen = math.max(0.05, visibleDuration + gap);
       final k = (time / cycleLen).floor();
       final phase = time - k * cycleLen;
-      final visible = alwaysOn || phase < visibleDuration;
+
+      final bool visible =
+          spotlight ? (i == spotlightIndex) : (alwaysOn || phase < visibleDuration);
       if (!visible) continue;
 
       double cx, cy;
-      if (mode == TrackingMode.grid) {
+      if (mode == TrackingMode.grid && !spotlight) {
         final cols = math.max(1, math.sqrt(configs.length).ceil());
         final rows = (configs.length / cols).ceil();
         final col = i % cols;
         final row = i ~/ cols;
         cx = (col + 0.5) / cols * size.width;
         cy = (row + 0.5) / rows * size.height;
-      } else if (mode == TrackingMode.focus) {
+      } else if (mode == TrackingMode.focus && !spotlight) {
         final angle = i * 2.399963;
         final radius = 0.06 * minSide * math.sqrt(i + 1);
         cx = size.width / 2 + math.cos(angle) * radius;
@@ -95,7 +110,7 @@ class TrackingRenderer {
       final shakeX = math.sin(time * 23 + seed % 17) * minSide * 0.004;
       final shakeY = math.cos(time * 19 + seed % 13) * minSide * 0.004;
 
-      final boxSize = c.sizeFrac * minSide;
+      final boxSize = c.sizeFrac * minSide * (spotlight ? 1.25 : 1.0);
       final blink = (math.sin(time * 6 + seed % 11) + 1) / 2;
       final segment = (time / 0.06).floor();
       final isDense = c.label.isEmpty;
@@ -106,6 +121,11 @@ class TrackingRenderer {
               ? _fastTag(seed, segment)
               : 'OBJ_${10 + (_hash(seed, 0) * 89).floor()}');
 
+      var glow = (0.45 + blink * 0.55).clamp(0.0, 1.0);
+      if (spotlight) {
+        glow = (glow * (0.3 + 0.7 * spotlightRamp)).clamp(0.0, 1.0);
+      }
+
       boxes.add(TrackingBox(
         rect: Rect.fromCenter(
           center: Offset(cx + shakeX, cy + shakeY),
@@ -114,7 +134,7 @@ class TrackingRenderer {
         ),
         tag: tag,
         label: c.label,
-        glow: (0.45 + blink * 0.55).clamp(0.0, 1.0),
+        glow: glow,
         dense: isDense,
       ));
     }
@@ -163,6 +183,7 @@ class TrackingRenderer {
     double visibleDuration,
     Color color,
     bool webEnabled,
+    bool spotlight,
   ) {
     final boxes = boxesAt(
       time: time,
@@ -170,9 +191,9 @@ class TrackingRenderer {
       configs: configs,
       mode: mode,
       visibleDuration: visibleDuration,
+      spotlight: spotlight,
     );
 
-    // Паутина: либо между всеми трекерами, либо только между безымянными.
     final meshTargets =
         webEnabled ? boxes : boxes.where((b) => b.dense).toList();
     _drawMesh(canvas, meshTargets, color);

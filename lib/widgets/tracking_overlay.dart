@@ -10,6 +10,7 @@ class TrackingOverlay extends StatelessWidget {
   final double time;
   final Color color;
   final bool webEnabled;
+  final bool spotlight;
 
   const TrackingOverlay({
     super.key,
@@ -19,6 +20,7 @@ class TrackingOverlay extends StatelessWidget {
     required this.time,
     required this.color,
     required this.webEnabled,
+    required this.spotlight,
   });
 
   @override
@@ -32,6 +34,7 @@ class TrackingOverlay extends StatelessWidget {
         time,
         color,
         webEnabled,
+        spotlight,
       ),
     );
   }
@@ -44,6 +47,7 @@ class _TrackingPainter extends CustomPainter {
   final double time;
   final Color color;
   final bool webEnabled;
+  final bool spotlight;
 
   _TrackingPainter(
     this.configs,
@@ -52,6 +56,7 @@ class _TrackingPainter extends CustomPainter {
     this.time,
     this.color,
     this.webEnabled,
+    this.spotlight,
   );
 
   @override
@@ -65,6 +70,7 @@ class _TrackingPainter extends CustomPainter {
       visibleDuration,
       color,
       webEnabled,
+      spotlight,
     );
   }
 

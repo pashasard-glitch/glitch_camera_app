@@ -60,6 +60,7 @@ class _CameraScreenState extends State<CameraScreen> {
   double _trackingVisibleDuration = 0.6;
   Color _trackingColor = Colors.cyanAccent;
   bool _trackingWebEnabled = false;
+  bool _trackingSpotlight = false;
 
   int _deviceRotation = 0;
   bool _autoOrientation = true;
@@ -79,7 +80,6 @@ class _CameraScreenState extends State<CameraScreen> {
   Timer? _focusIndicatorTimer;
   Timer? _tickTimer;
 
-  // Зум.
   double _zoom = 1.0;
   double _baseZoom = 1.0;
   double _minZoom = 1.0;
@@ -120,6 +120,7 @@ class _CameraScreenState extends State<CameraScreen> {
           _trackingVisibleDuration,
           _trackingColor,
           _trackingWebEnabled,
+          _trackingSpotlight,
         );
   }
 
@@ -500,6 +501,7 @@ class _CameraScreenState extends State<CameraScreen> {
           trackingVisibleDuration: _trackingVisibleDuration,
           trackingColor: _trackingColor,
           trackingWebEnabled: _trackingWebEnabled,
+          trackingSpotlight: _trackingSpotlight,
           onTrackerConfigsChanged: (list) =>
               setState(() => _trackerConfigs = list),
           onTrackingModeChanged: (m) => setState(() => _trackingMode = m),
@@ -508,6 +510,8 @@ class _CameraScreenState extends State<CameraScreen> {
           onTrackingColorChanged: (c) => setState(() => _trackingColor = c),
           onTrackingWebEnabledChanged: (v) =>
               setState(() => _trackingWebEnabled = v),
+          onTrackingSpotlightChanged: (v) =>
+              setState(() => _trackingSpotlight = v),
         ),
       ),
     );
@@ -585,6 +589,7 @@ class _CameraScreenState extends State<CameraScreen> {
                   time: _time,
                   color: _trackingColor,
                   webEnabled: _trackingWebEnabled,
+                  spotlight: _trackingSpotlight,
                 ),
               ),
             ),

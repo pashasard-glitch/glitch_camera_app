@@ -12,11 +12,13 @@ class SettingsMenu extends StatefulWidget {
   final double trackingVisibleDuration;
   final Color trackingColor;
   final bool trackingWebEnabled;
+  final bool trackingSpotlight;
   final ValueChanged<List<TrackerConfig>> onTrackerConfigsChanged;
   final ValueChanged<TrackingMode> onTrackingModeChanged;
   final ValueChanged<double> onTrackingVisibleDurationChanged;
   final ValueChanged<Color> onTrackingColorChanged;
   final ValueChanged<bool> onTrackingWebEnabledChanged;
+  final ValueChanged<bool> onTrackingSpotlightChanged;
 
   const SettingsMenu({
     super.key,
@@ -27,11 +29,13 @@ class SettingsMenu extends StatefulWidget {
     required this.trackingVisibleDuration,
     required this.trackingColor,
     required this.trackingWebEnabled,
+    required this.trackingSpotlight,
     required this.onTrackerConfigsChanged,
     required this.onTrackingModeChanged,
     required this.onTrackingVisibleDurationChanged,
     required this.onTrackingColorChanged,
     required this.onTrackingWebEnabledChanged,
+    required this.onTrackingSpotlightChanged,
   });
 
   @override
@@ -49,6 +53,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
   late int _trackerCount = widget.trackerConfigs.length;
   late TrackingMode _trackingMode = widget.trackingMode;
   late Color _trackingColor = widget.trackingColor;
+  late bool _trackingSpotlight = widget.trackingSpotlight;
 
   @override
   void dispose() {
@@ -99,6 +104,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
           visibleDuration: widget.trackingVisibleDuration,
           color: widget.trackingColor,
           webEnabled: widget.trackingWebEnabled,
+          spotlight: widget.trackingSpotlight,
           onConfigsChanged: (list) {
             widget.onTrackerConfigsChanged(list);
             setState(() => _trackerCount = list.length);
@@ -113,6 +119,10 @@ class _SettingsMenuState extends State<SettingsMenu> {
             setState(() => _trackingColor = c);
           },
           onWebEnabledChanged: widget.onTrackingWebEnabledChanged,
+          onSpotlightChanged: (v) {
+            widget.onTrackingSpotlightChanged(v);
+            setState(() => _trackingSpotlight = v);
+          },
         ),
       ),
     );
@@ -123,7 +133,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
       case TrackingMode.grid:
         return 'сетка';
       case TrackingMode.focus:
-        return 'фокус';
+        return 'фокус в центр';
       default:
         return 'обычный';
     }
@@ -230,7 +240,8 @@ class _SettingsMenuState extends State<SettingsMenu> {
                   style: TextStyle(color: Colors.cyanAccent, letterSpacing: 2),
                 ),
                 subtitle: Text(
-                  '$_trackerCount шт. · режим: ${_modeLabel(_trackingMode)}',
+                  '$_trackerCount шт. · режим: ${_modeLabel(_trackingMode)}'
+                  '${_trackingSpotlight ? ' · фокус по очереди' : ''}',
                   style: const TextStyle(color: Colors.white54),
                 ),
                 trailing:
