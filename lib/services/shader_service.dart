@@ -17,6 +17,7 @@ class ShaderService {
     required int flags,
     required int rotationDegrees,
     required bool mirror,
+    void Function(Canvas canvas, double width, double height)? overlay,
   }) async {
     if (_program == null) return null;
     try {
@@ -30,6 +31,9 @@ class ShaderService {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
+      // Поворот/зеркало действуют только на сам кадр — оверлей рисуется
+      // отдельно, уже в системе координат готового изображения.
+      canvas.save();
       if (mirror) {
         canvas.translate(dstW, 0);
         canvas.scale(-1, 1);
@@ -69,6 +73,11 @@ class ShaderService {
         Rect.fromLTWH(0, 0, srcW, srcH),
         Paint()..shader = shader,
       );
+      canvas.restore();
+
+      if (overlay != null) {
+        overlay(canvas, dstW, dstH);
+      }
 
       final picture = recorder.endRecording();
       return await picture.toImage(dstW.toInt(), dstH.toInt());

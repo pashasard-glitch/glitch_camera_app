@@ -108,6 +108,21 @@ class _CameraScreenState extends State<CameraScreen> {
         .toList();
   }
 
+  void Function(Canvas canvas, double width, double height)?
+      get _trackingOverlayFn {
+    if (!_trackingEnabled) return null;
+    return (canvas, w, h) => TrackingRenderer.paint(
+          canvas,
+          Size(w, h),
+          _time,
+          _trackerConfigs,
+          _trackingMode,
+          _trackingVisibleDuration,
+          _trackingColor,
+          _trackingWebEnabled,
+        );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -266,27 +281,6 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  Future<ui.Image> _bakeTracking(ui.Image source) async {
-    if (!_trackingEnabled) return source;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final w = source.width.toDouble();
-    final h = source.height.toDouble();
-    canvas.drawImage(source, Offset.zero, Paint());
-    TrackingRenderer.paint(
-      canvas,
-      Size(w, h),
-      _time,
-      _trackerConfigs,
-      _trackingMode,
-      _trackingVisibleDuration,
-      _trackingColor,
-      _trackingWebEnabled,
-    );
-    final picture = recorder.endRecording();
-    return picture.toImage(source.width, source.height);
-  }
-
   Future<void> _appendVideoFrame(ui.Image img) async {
     if (_videoFrameBusy || _shader.program == null) return;
 
@@ -305,11 +299,11 @@ class _CameraScreenState extends State<CameraScreen> {
         flags: _flags,
         rotationDegrees: _videoRotation,
         mirror: _mirror,
+        overlay: _trackingOverlayFn,
       );
       if (rendered != null) {
-        final baked = await _bakeTracking(rendered);
         final byteData =
-            await baked.toByteData(format: ui.ImageByteFormat.rawRgba);
+            await rendered.toByteData(format: ui.ImageByteFormat.rawRgba);
         if (byteData != null) {
           final bytes = byteData.buffer.asUint8List();
           for (int i = 0; i < repeat; i++) {
@@ -358,13 +352,13 @@ class _CameraScreenState extends State<CameraScreen> {
         flags: _flags,
         rotationDegrees: _fileRotation,
         mirror: _mirror,
+        overlay: _trackingOverlayFn,
       );
       if (rendered == null) return;
-      final finalImage = await _bakeTracking(rendered);
       try {
-        await _gallery.savePhoto(finalImage);
+        await _gallery.savePhoto(rendered);
       } catch (_) {}
-      await _media.saveImage(finalImage);
+      await _media.saveImage(rendered);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Глитч-фото сохранено в галерею')),
