@@ -15,7 +15,7 @@ class VideoEncoderService {
       width: width,
       height: height,
       fps: fps,
-      videoBitrate: 4 * 1000 * 1000,
+      videoBitrate: 2 * 1000 * 1000,
       profileLevel: ProfileLevel.any,
       audioBitrate: 0,
       audioChannels: 0,

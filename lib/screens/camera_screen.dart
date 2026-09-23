@@ -31,8 +31,8 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen> {
-  static const int _videoFps = 24;
-  static const int _maxRepeat = 96;
+  static const int _videoFps = 12;
+  static const int _maxRepeat = 24;
 
   final _camera = CameraService();
   final _shader = ShaderService();
