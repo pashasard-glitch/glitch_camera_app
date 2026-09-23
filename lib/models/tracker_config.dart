@@ -5,20 +5,28 @@ class TrackerConfig {
   final String label;
   final double sizeFrac;
   final bool randomTag;
+  final bool includeInSpotlight;
 
   TrackerConfig({
     required this.id,
     required this.label,
     required this.sizeFrac,
     this.randomTag = false,
+    this.includeInSpotlight = true,
   });
 
-  TrackerConfig copyWith({String? label, double? sizeFrac, bool? randomTag}) {
+  TrackerConfig copyWith({
+    String? label,
+    double? sizeFrac,
+    bool? randomTag,
+    bool? includeInSpotlight,
+  }) {
     return TrackerConfig(
       id: id,
       label: label ?? this.label,
       sizeFrac: sizeFrac ?? this.sizeFrac,
       randomTag: randomTag ?? this.randomTag,
+      includeInSpotlight: includeInSpotlight ?? this.includeInSpotlight,
     );
   }
 

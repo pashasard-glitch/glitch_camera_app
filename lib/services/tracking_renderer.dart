@@ -63,16 +63,22 @@ class TrackingRenderer {
     final boxes = <TrackingBox>[];
     final alwaysOn = mode != TrackingMode.random;
 
-    // "Фокус по очереди": в любой момент виден только один трекер,
-    // остальные скрыты, интервал переключения — тот же ползунок времени.
+    // "Фокус по очереди": видим только один трекер за раз, но крутится
+    // он только среди тех, у кого включено участие в фокусе.
     int? spotlightIndex;
     double spotlightRamp = 1.0;
     if (spotlight) {
-      final interval = math.max(0.2, visibleDuration);
-      final k = (time / interval).floor();
-      spotlightIndex = k % configs.length;
-      final phase = time - k * interval;
-      spotlightRamp = (phase / (interval * 0.3)).clamp(0.0, 1.0);
+      final pool = <int>[
+        for (int i = 0; i < configs.length; i++)
+          if (configs[i].includeInSpotlight) i,
+      ];
+      if (pool.isNotEmpty) {
+        final interval = math.max(0.2, visibleDuration);
+        final k = (time / interval).floor();
+        spotlightIndex = pool[k % pool.length];
+        final phase = time - k * interval;
+        spotlightRamp = (phase / (interval * 0.3)).clamp(0.0, 1.0);
+      }
     }
 
     for (int i = 0; i < configs.length; i++) {
@@ -83,8 +89,9 @@ class TrackingRenderer {
       final k = (time / cycleLen).floor();
       final phase = time - k * cycleLen;
 
-      final bool visible =
-          spotlight ? (i == spotlightIndex) : (alwaysOn || phase < visibleDuration);
+      final bool visible = spotlight
+          ? (i == spotlightIndex)
+          : (alwaysOn || phase < visibleDuration);
       if (!visible) continue;
 
       double cx, cy;

@@ -51,6 +51,9 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
   bool get _allRandomTag =>
       _configs.isNotEmpty && _configs.every((c) => c.randomTag);
 
+  bool get _allInSpotlight =>
+      _configs.isNotEmpty && _configs.every((c) => c.includeInSpotlight);
+
   void _emitConfigs() => widget.onConfigsChanged(List.of(_configs));
 
   static String _toHex(Color c) {
@@ -94,6 +97,15 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
     setState(() {
       for (int i = 0; i < _configs.length; i++) {
         _configs[i] = _configs[i].copyWith(randomTag: value);
+      }
+    });
+    _emitConfigs();
+  }
+
+  void _setAllInSpotlight(bool value) {
+    setState(() {
+      for (int i = 0; i < _configs.length; i++) {
+        _configs[i] = _configs[i].copyWith(includeInSpotlight: value);
       }
     });
     _emitConfigs();
@@ -244,6 +256,12 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
     _emitConfigs();
   }
 
+  void _toggleInSpotlight(int index, bool value) {
+    setState(() => _configs[index] =
+        _configs[index].copyWith(includeInSpotlight: value));
+    _emitConfigs();
+  }
+
   void _clearAll() {
     setState(() => _configs.clear());
     _emitConfigs();
@@ -307,7 +325,7 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
             ),
             subtitle: const Text(
               'Видно только один трекер, потом он пропадает и подсвечивается другой. '
-              'Работает поверх любого режима выше.',
+              'Какие именно трекеры участвуют — настраивается ниже, у каждого трекера отдельно.',
               style: TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ),
@@ -418,6 +436,20 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
             checkColor: Colors.black,
             title: const Text(
               'Случайные символы — сразу у всех',
+              style: TextStyle(color: Colors.cyanAccent, fontSize: 13),
+            ),
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _allInSpotlight,
+            onChanged: _configs.isEmpty
+                ? null
+                : (v) => _setAllInSpotlight(v ?? false),
+            activeColor: Colors.cyanAccent,
+            checkColor: Colors.black,
+            title: const Text(
+              'Участвует в фокусе по очереди — сразу у всех',
               style: TextStyle(color: Colors.cyanAccent, fontSize: 13),
             ),
           ),
@@ -538,6 +570,18 @@ class _TrackerSettingsScreenState extends State<TrackerSettingsScreen> {
             checkColor: Colors.black,
             title: const Text(
               'Случайные символы (быстро меняются)',
+              style: TextStyle(color: Colors.cyanAccent, fontSize: 13),
+            ),
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: c.includeInSpotlight,
+            onChanged: (v) => _toggleInSpotlight(index, v ?? false),
+            activeColor: Colors.cyanAccent,
+            checkColor: Colors.black,
+            title: const Text(
+              'Участвует в фокусе по очереди',
               style: TextStyle(color: Colors.cyanAccent, fontSize: 13),
             ),
           ),
