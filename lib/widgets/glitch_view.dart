@@ -60,7 +60,7 @@ class _GlitchPainter extends CustomPainter {
     shader.setFloat(1, size.height);
     shader.setFloat(2, time);
     shader.setFloat(3, flags.toDouble());
-    for (int i = 0; i < 11; i++) {
+    for (int i = 0; i < 12; i++) {
       shader.setFloat(
         4 + i,
         i < effectIntensities.length ? effectIntensities[i] : 0.8,

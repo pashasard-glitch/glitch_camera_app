@@ -31,8 +31,6 @@ class ShaderService {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
-      // Поворот/зеркало действуют только на сам кадр — оверлей рисуется
-      // отдельно, уже в системе координат готового изображения.
       canvas.save();
       if (mirror) {
         canvas.translate(dstW, 0);
@@ -61,7 +59,7 @@ class ShaderService {
       shader.setFloat(1, srcH);
       shader.setFloat(2, time);
       shader.setFloat(3, flags.toDouble());
-      for (int i = 0; i < 11; i++) {
+      for (int i = 0; i < 12; i++) {
         shader.setFloat(
           4 + i,
           i < effectIntensities.length ? effectIntensities[i] : 0.8,

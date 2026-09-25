@@ -10,6 +10,7 @@ class EffectFlags {
   static const int scratches = 256;
   static const int oldFilter = 512;
   static const int heavyMosh = 1024;
+  static const int cyberGlow = 2048;
 
   static const List<MapEntry<String, int>> all = [
     MapEntry('RGB SPLIT', rgbSplit),
@@ -23,5 +24,6 @@ class EffectFlags {
     MapEntry('SCRATCHES', scratches),
     MapEntry('OLD FILTER', oldFilter),
     MapEntry('HEAVY MOSH', heavyMosh),
+    MapEntry('CYBER GLOW', cyberGlow),
   ];
 }
