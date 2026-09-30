@@ -22,6 +22,7 @@ import '../widgets/glitch_view.dart';
 import '../widgets/settings_menu.dart';
 import '../widgets/tracking_overlay.dart';
 import 'gallery_screen.dart';
+import 'panorama_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -240,6 +241,16 @@ class _CameraScreenState extends State<CameraScreen> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const GalleryScreen()),
+    );
+  }
+
+  void _openPanorama() {
+    if (_isRecording) {
+      _toast('Сначала останови запись');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PanoramaScreen()),
     );
   }
 
@@ -687,6 +698,12 @@ class _CameraScreenState extends State<CameraScreen> {
                         size: 30,
                       ),
                       onPressed: _toggleTracking,
+                    ),
+                    IconButton(
+                      tooltip: 'Панорама 360',
+                      icon: const Icon(Icons.threesixty,
+                          color: Colors.cyanAccent, size: 30),
+                      onPressed: _openPanorama,
                     ),
                     IconButton(
                       tooltip: 'Плеер',
