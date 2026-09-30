@@ -102,7 +102,7 @@ class PanoramaService {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.drawRect(
-      const Rect.fromLTWH(0, 0, totalWidth.toDouble(), totalHeight.toDouble()),
+      Rect.fromLTWH(0, 0, totalWidth.toDouble(), totalHeight.toDouble()),
       Paint()..color = Colors.black,
     );
 
@@ -124,11 +124,11 @@ class PanoramaService {
       // Копия у левого/правого края, чтобы шов на 0°/360° не был пустым.
       if (x < w) {
         canvas.drawImageRect(
-            img, src, dst.shift(const Offset(totalWidth.toDouble(), 0)), Paint());
+            img, src, dst.shift(Offset(totalWidth.toDouble(), 0)), Paint());
       }
       if (x + w > totalWidth - w) {
         canvas.drawImageRect(
-            img, src, dst.shift(const Offset(-totalWidth.toDouble(), 0)), Paint());
+            img, src, dst.shift(Offset(-totalWidth.toDouble(), 0)), Paint());
       }
     }
 
