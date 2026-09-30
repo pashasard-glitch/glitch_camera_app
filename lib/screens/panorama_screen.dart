@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../services/camera_service.dart';
 import '../services/gallery_service.dart';
 import '../services/media_service.dart';
 import '../services/panorama_service.dart';
+import 'panorama_viewer_screen.dart';
 
 class PanoramaScreen extends StatefulWidget {
   const PanoramaScreen({super.key});
@@ -27,8 +29,8 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
   bool _scanning = false;
   bool _busy = false;
   ui.Image? _result;
-  Timer? _tick;
   double _yaw = 0;
+  double _pitch = 0;
   int _shots = 0;
 
   @override
@@ -44,8 +46,9 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
         if (mounted) setState(() => _frame = img);
         if (_scanning && _panorama.shouldCapture()) {
           final yawNow = _panorama.yaw;
+          final pitchNow = _panorama.pitch;
           _rotateForDisplay(img).then((rotated) {
-            _panorama.addFrame(rotated, yawNow);
+            _panorama.addFrame(rotated, yawNow, pitchNow);
             if (mounted) setState(() => _shots = _panorama.frameCount);
           });
         }
@@ -92,15 +95,24 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
       _scanning = true;
       _shots = 0;
       _yaw = 0;
+      _pitch = 0;
       _result = null;
     });
-    _tick = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (mounted) setState(() => _yaw = _panorama.yaw);
+    Timer.periodic(const Duration(milliseconds: 100), (t) {
+      if (!_scanning) {
+        t.cancel();
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _yaw = _panorama.yaw;
+          _pitch = _panorama.pitch;
+        });
+      }
     });
   }
 
   Future<void> _stopScan() async {
-    _tick?.cancel();
     _panorama.stop();
     setState(() {
       _scanning = false;
@@ -128,13 +140,25 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
     }
   }
 
+  Future<void> _viewAsSphere() async {
+    if (_result == null) return;
+    final byteData =
+        await _result!.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null || !mounted) return;
+    final bytes = byteData.buffer.asUint8List();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PanoramaViewerScreen(pngBytes: bytes),
+      ),
+    );
+  }
+
   void _discard() {
     setState(() => _result = null);
   }
 
   @override
   void dispose() {
-    _tick?.cancel();
     _panorama.stop();
     _camera.stopStream();
     _camera.dispose();
@@ -170,22 +194,35 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            child: Column(
               children: [
-                OutlinedButton.icon(
-                  onPressed: _discard,
-                  icon: const Icon(Icons.close, color: Colors.redAccent),
-                  label: const Text('Заново',
-                      style: TextStyle(color: Colors.redAccent)),
-                ),
                 ElevatedButton.icon(
-                  onPressed: _save,
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent),
-                  icon: const Icon(Icons.save, color: Colors.black),
-                  label: const Text('Сохранить',
+                  onPressed: _viewAsSphere,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.cyanAccent,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  icon: const Icon(Icons.threesixty, color: Colors.black),
+                  label: const Text('Смотреть как сферу (как в VR)',
                       style: TextStyle(color: Colors.black)),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _discard,
+                      icon: const Icon(Icons.close, color: Colors.redAccent),
+                      label: const Text('Заново',
+                          style: TextStyle(color: Colors.redAccent)),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _save,
+                      icon: const Icon(Icons.save, color: Colors.cyanAccent),
+                      label: const Text('Сохранить файл',
+                          style: TextStyle(color: Colors.cyanAccent)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -230,15 +267,17 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
               child: Column(
                 children: [
                   SizedBox(
-                    width: 120,
-                    height: 120,
-                    child: CustomPaint(painter: _CompassPainter(yaw: _yaw)),
+                    width: 140,
+                    height: 140,
+                    child: CustomPaint(
+                      painter: _SkyMapPainter(yaw: _yaw, pitch: _pitch),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _scanning
-                        ? 'Кадров: $_shots · медленно поворачивайся вокруг себя'
-                        : 'Нажми и медленно повернись на 360°, держа телефон ровно',
+                        ? 'Кадров: $_shots · крутись по кругу и наклоняй телефон вверх/вниз'
+                        : 'Нажми, медленно повернись на 360° и наклони телефон вверх и вниз',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.cyanAccent),
                   ),
@@ -278,44 +317,47 @@ class _PanoramaScreenState extends State<PanoramaScreen> {
   }
 }
 
-class _CompassPainter extends CustomPainter {
+/// Прямоугольная "карта неба": по горизонтали — поворот 0-360°,
+/// по вертикали — наклон -90..+90°. Точка показывает, где сейчас целится
+/// камера, чтобы было видно, что верх/низ ещё не отсняты.
+class _SkyMapPainter extends CustomPainter {
   final double yaw;
-  _CompassPainter({required this.yaw});
+  final double pitch;
+  _SkyMapPainter({required this.yaw, required this.pitch});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2 - 6;
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..color = Colors.cyanAccent.withOpacity(0.15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    final midY = size.height / 2;
+    canvas.drawLine(
+      Offset(0, midY),
+      Offset(size.width, midY),
+      Paint()
+        ..color = Colors.cyanAccent.withOpacity(0.2)
+        ..strokeWidth = 1,
+    );
+
+    var yawNorm = yaw % 360.0;
+    if (yawNorm < 0) yawNorm += 360.0;
+    final px = yawNorm / 360.0 * size.width;
+    final py = (90.0 - pitch.clamp(-90.0, 90.0)) / 180.0 * size.height;
 
     canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = Colors.cyanAccent.withOpacity(0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
+      Offset(px, py),
+      6,
+      Paint()..color = Colors.white,
     );
-
-    final progress = (yaw.abs() / 360.0).clamp(0.0, 1.0);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      progress * 2 * math.pi,
-      false,
-      Paint()
-        ..color = Colors.cyanAccent
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final angleRad = yaw * math.pi / 180 - math.pi / 2;
-    final dot =
-        center + Offset(math.cos(angleRad), math.sin(angleRad)) * radius;
-    canvas.drawCircle(dot, 5, Paint()..color = Colors.white);
   }
 
   @override
-  bool shouldRepaint(covariant _CompassPainter oldDelegate) =>
-      oldDelegate.yaw != yaw;
+  bool shouldRepaint(covariant _SkyMapPainter oldDelegate) =>
+      oldDelegate.yaw != yaw || oldDelegate.pitch != pitch;
 }
