@@ -17,6 +17,9 @@ class PanoramaService {
   double _lastCaptureYaw = 0.0;
   DateTime? _lastSampleTime;
   StreamSubscription<GyroscopeEvent>? _gyroSub;
+  int eventCount = 0;
+  double lastRawY = 0.0;
+  String? lastError;
 
   final List<ui.Image> _frames = [];
   final List<double> _yaws = [];
@@ -28,19 +31,30 @@ class PanoramaService {
     _yaw = 0;
     _lastCaptureYaw = 0;
     _lastSampleTime = null;
+    eventCount = 0;
+    lastRawY = 0.0;
+    lastError = null;
     _frames.clear();
     _yaws.clear();
-    _gyroSub = gyroscopeEventStream().listen((event) {
-      final now = DateTime.now();
-      if (_lastSampleTime != null) {
-        final dt = now.difference(_lastSampleTime!).inMicroseconds / 1e6;
-        // event.y — поворот вокруг вертикальной оси телефона, держим
-        // портретно. Если направление окажется зеркальным на твоём
-        // телефоне, поменяй знак на минус.
-        _yaw += event.y * dt * 180 / math.pi;
-      }
-      _lastSampleTime = now;
-    });
+    _gyroSub = gyroscopeEventStream().listen(
+      (event) {
+        eventCount++;
+        lastRawY = event.y;
+        final now = DateTime.now();
+        if (_lastSampleTime != null) {
+          final dt = now.difference(_lastSampleTime!).inMicroseconds / 1e6;
+          // event.y — поворот вокруг вертикальной оси телефона, держим
+          // портретно. Если направление окажется зеркальным на твоём
+          // телефоне, поменяй знак на минус.
+          _yaw += event.y * dt * 180 / math.pi;
+        }
+        _lastSampleTime = now;
+      },
+      onError: (e) {
+        lastError = e.toString();
+      },
+      cancelOnError: false,
+    );
   }
 
   void stop() {
