@@ -19,6 +19,10 @@ dependencies:
   flutter_quick_video_encoder: ^1.7.2
   record: ^5.2.1
   ffmpeg_kit_flutter_new_video: ^2.4.3
+  model_viewer_plus: ^1.7.0
+  file_picker: ^8.1.2
+  share_plus: ^10.0.2
+  archive: ^3.6.1
 
 dev_dependencies:
   flutter_test:
