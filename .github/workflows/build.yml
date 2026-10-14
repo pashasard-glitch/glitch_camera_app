@@ -25,24 +25,12 @@ jobs:
 
       - name: Add permissions
         run: |
-          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>\n    <uses-feature android:name="android.hardware.camera" android:required="true"/>' android/app/src/main/AndroidManifest.xml
-          echo "--- Manifest after insert ---"
-          cat android/app/src/main/AndroidManifest.xml
+          sed -i 's|<uses-permission android:name="android.permission.CAMERA"/>|<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>|' android/app/src/main/AndroidManifest.xml
 
       - name: Bump compileSdk to 36
         run: |
           sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 36|g' android/app/build.gradle.kts
-
-      - name: Force compileSdk 34+ in all plugin dependencies
-        run: |
-          find "$HOME/.pub-cache" -name "build.gradle" -exec grep -l "compileSdkVersion 33" {} \; 2>/dev/null | xargs -r sed -i 's/compileSdkVersion 33/compileSdkVersion 34/g'
-          find "$HOME/.pub-cache" -name "build.gradle" -exec grep -l "compileSdk 33" {} \; 2>/dev/null | xargs -r sed -i 's/compileSdk 33/compileSdk 34/g'
-
-      - name: Add Maven Central as fallback plugin repository
-        run: |
-          sed -i '/pluginManagement {/a\    repositories {\n        gradlePluginPortal()\n        google()\n        mavenCentral()\n    }' android/settings.gradle.kts || true
-          echo "--- settings.gradle.kts after ---"
-          cat android/settings.gradle.kts
+          sed -i -E 's|compileSdkVersion [0-9]+|compileSdkVersion 36|g' android/app/build.gradle 2>/dev/null || true
 
       - name: Show compileSdk after
         run: grep -n "compileSdk" android/app/build.gradle.kts || true
