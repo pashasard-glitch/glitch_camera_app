@@ -32,8 +32,46 @@ jobs:
           sed -i -E 's|^([[:space:]]*)compileSdk[[:space:]]*=.*$|\1compileSdk = 36|g' android/app/build.gradle.kts
           sed -i -E 's|compileSdkVersion [0-9]+|compileSdkVersion 36|g' android/app/build.gradle 2>/dev/null || true
 
+      - name: Force compileSdk 36 in all plugin dependencies
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("android/build.gradle.kts")
+          s = p.read_text()
+          block = '''subprojects {
+              afterEvaluate {
+                  val androidExt = extensions.findByName("android")
+                  if (androidExt != null) {
+                      for (methodName in listOf("compileSdkVersion", "setCompileSdkVersion")) {
+                          try {
+                              androidExt.javaClass
+                                  .getMethod(methodName, Int::class.javaPrimitiveType)
+                                  .invoke(androidExt, 36)
+                              break
+                          } catch (e: NoSuchMethodException) {
+                              // пробуем следующее имя метода
+                          } catch (e: Exception) {
+                              println("compileSdk override failed for ${project.name}: ${e.message}")
+                              break
+                          }
+                      }
+                  }
+              }
+          }
+          '''
+          idx = s.find("subprojects {")
+          if idx == -1:
+              s = s + "\n" + block
+          else:
+              s = s[:idx] + block + "\n" + s[idx:]
+          p.write_text(s)
+          PY
+
       - name: Show compileSdk after
-        run: grep -n "compileSdk" android/app/build.gradle.kts || true
+        run: |
+          grep -n "compileSdk" android/app/build.gradle.kts || true
+          echo "----- android/build.gradle.kts -----"
+          cat android/build.gradle.kts
 
       - run: flutter pub get
 
